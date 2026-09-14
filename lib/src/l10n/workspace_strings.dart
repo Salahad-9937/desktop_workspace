@@ -1,3 +1,5 @@
+import 'package:flutter/widgets.dart';
+
 /// Контракт локализованных строковых ресурсов рабочего пространства.
 abstract class WorkspaceStrings {
   /// Текст кнопки системного лаунчера в таскбаре.
@@ -71,6 +73,36 @@ abstract class WorkspaceStrings {
 
   /// Префикс копии вкладки.
   String tabCopySuffix(String title);
+
+  /// Текст количества скрытых вкладок в превью таскбара.
+  String moreTabs(int count);
+
+  /// Название зоны тайлинга: весь экран.
+  String get tileMaximize;
+
+  /// Название зоны тайлинга: левая половина.
+  String get tileLeftHalf;
+
+  /// Название зоны тайлинга: правая половина.
+  String get tileRightHalf;
+
+  /// Название зоны тайлинга: верхняя левая четверть.
+  String get tileTopLeft;
+
+  /// Название зоны тайлинга: верхняя правая четверть.
+  String get tileTopRight;
+
+  /// Название зоны тайлинга: нижняя левая четверть.
+  String get tileBottomLeft;
+
+  /// Название зоны тайлинга: нижняя правая четверть.
+  String get tileBottomRight;
+
+  /// Заголовок окна по умолчанию.
+  String defaultWindowTitle(int index);
+
+  /// Заголовок вкладки по умолчанию.
+  String defaultTabTitle(int index);
 }
 
 /// Реализация строковых ресурсов по умолчанию на русском языке.
@@ -97,13 +129,16 @@ class DefaultWorkspaceStrings implements WorkspaceStrings {
   String get clearAllWindows => 'Закрыть все окна';
 
   @override
-  String get layoutCopiedSnackbar => 'Раскладка окон скопирована в буфер обмена (JSON)';
+  String get layoutCopiedSnackbar =>
+      'Раскладка окон скопирована в буфер обмена (JSON)';
 
   @override
-  String get layoutRestoredSnackbar => 'Раскладка успешно восстановлена из буфера обмена';
+  String get layoutRestoredSnackbar =>
+      'Раскладка успешно восстановлена из буфера обмена';
 
   @override
-  String get layoutRestoreFailedSnackbar => 'Не удалось прочитать JSON-конфигурацию из буфера';
+  String get layoutRestoreFailedSnackbar =>
+      'Не удалось прочитать JSON-конфигурацию из буфера';
 
   @override
   String get systemTimeTitle => 'Системное время';
@@ -150,4 +185,169 @@ class DefaultWorkspaceStrings implements WorkspaceStrings {
 
   @override
   String tabCopySuffix(String title) => '$title (Копия)';
+
+  @override
+  String moreTabs(int count) => '+ ещё $count вкладок в окне';
+
+  @override
+  String get tileMaximize => 'ВЕСЬ ЭКРАН';
+
+  @override
+  String get tileLeftHalf => 'ЛЕВАЯ ПОЛОВИНА';
+
+  @override
+  String get tileRightHalf => 'ПРАВАЯ ПОЛОВИНА';
+
+  @override
+  String get tileTopLeft => 'ВЕРХНЯЯ 1/4';
+
+  @override
+  String get tileTopRight => 'ВЕРХНЯЯ 1/4';
+
+  @override
+  String get tileBottomLeft => 'НИЖНЯЯ 1/4';
+
+  @override
+  String get tileBottomRight => 'НИЖНЯЯ 1/4';
+
+  @override
+  String defaultWindowTitle(int index) => 'Окно $index';
+
+  @override
+  String defaultTabTitle(int index) => 'Вкладка $index';
+}
+
+/// Англоязычная реализация строковых ресурсов рабочего пространства.
+class EnglishWorkspaceStrings implements WorkspaceStrings {
+  /// Создает экземпляр [EnglishWorkspaceStrings].
+  const EnglishWorkspaceStrings();
+
+  @override
+  String get menu => 'MENU';
+
+  @override
+  String get preset2x2 => 'Preset: 2x2 Grid';
+
+  @override
+  String get presetSplit => 'Preset: Split Screen';
+
+  @override
+  String get exportLayout => 'Export layout (to clipboard, JSON)';
+
+  @override
+  String get importLayout => 'Import layout (from clipboard)';
+
+  @override
+  String get clearAllWindows => 'Close all windows';
+
+  @override
+  String get layoutCopiedSnackbar => 'Window layout copied to clipboard (JSON)';
+
+  @override
+  String get layoutRestoredSnackbar =>
+      'Window layout successfully restored from clipboard';
+
+  @override
+  String get layoutRestoreFailedSnackbar =>
+      'Failed to parse JSON configuration from clipboard';
+
+  @override
+  String get systemTimeTitle => 'System Clock';
+
+  @override
+  String systemTimeDetail(String dateStr) =>
+      'Current date: $dateStr\nMulti-window workspace active.';
+
+  @override
+  String get pinTooltip => 'Always on top';
+
+  @override
+  String get unpinTooltip => 'Unpin window';
+
+  @override
+  String get minimizeTooltip => 'Minimize to taskbar';
+
+  @override
+  String get maximizeTooltip => 'Maximize';
+
+  @override
+  String get restoreTooltip => 'Restore';
+
+  @override
+  String get closeWindowTooltip => 'Close window';
+
+  @override
+  String get quickTileTooltip => 'Snap window to region (Quick Tile)';
+
+  @override
+  String get addTabTooltip => 'Add tab';
+
+  @override
+  String get tabClose => 'Close';
+
+  @override
+  String get tabDuplicate => 'Duplicate';
+
+  @override
+  String get tabDetach => 'Detach to new window';
+
+  @override
+  String get tabChangeModule => 'Switch module…';
+
+  @override
+  String tabCopySuffix(String title) => '$title (Copy)';
+
+  @override
+  String moreTabs(int count) => '+ $count more tabs';
+
+  @override
+  String get tileMaximize => 'FULL SCREEN';
+
+  @override
+  String get tileLeftHalf => 'LEFT HALF';
+
+  @override
+  String get tileRightHalf => 'RIGHT HALF';
+
+  @override
+  String get tileTopLeft => 'TOP-LEFT 1/4';
+
+  @override
+  String get tileTopRight => 'TOP-RIGHT 1/4';
+
+  @override
+  String get tileBottomLeft => 'BOTTOM-LEFT 1/4';
+
+  @override
+  String get tileBottomRight => 'BOTTOM-RIGHT 1/4';
+
+  @override
+  String defaultWindowTitle(int index) => 'Window $index';
+
+  @override
+  String defaultTabTitle(int index) => 'Tab $index';
+}
+
+/// Виджет внедрения локализованных строковых ресурсов в дерево контекста.
+class WorkspaceLocalizations extends InheritedWidget {
+  /// Экземпляр строковых ресурсов.
+  final WorkspaceStrings strings;
+
+  /// Создает экземпляр [WorkspaceLocalizations].
+  const WorkspaceLocalizations({
+    super.key,
+    required this.strings,
+    required super.child,
+  });
+
+  /// Получает действующие строковые ресурсы из [BuildContext].
+  static WorkspaceStrings of(BuildContext context) {
+    final WorkspaceLocalizations? scope =
+        context.dependOnInheritedWidgetOfExactType<WorkspaceLocalizations>();
+    return scope?.strings ?? const DefaultWorkspaceStrings();
+  }
+
+  @override
+  bool updateShouldNotify(covariant WorkspaceLocalizations oldWidget) =>
+      strings != oldWidget.strings;
 }

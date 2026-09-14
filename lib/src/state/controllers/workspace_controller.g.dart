@@ -45,7 +45,7 @@ final class WorkspaceControllerProvider
 }
 
 String _$workspaceControllerHash() =>
-    r'45a86b2ab0d97896f38ba10ea4afbf7345ff40c5';
+    r'c923db0156d9b0f57f5a4d680b617f3168b448de';
 
 /// Контроллер управления многооконным рабочим пространством, геометрией и вкладками.
 

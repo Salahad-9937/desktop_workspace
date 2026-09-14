@@ -2,9 +2,11 @@ import 'dart:convert';
 import 'dart:math' as math;
 import 'dart:ui';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
+import '../../config/workspace_config.dart';
 import '../../engine/geometry/magnet_snapper.dart';
 import '../../engine/layout/tile_calculator.dart';
 import '../../engine/seam/seam_resizer.dart';
+import '../../l10n/workspace_strings.dart';
 import '../models/geometry_types.dart';
 import '../models/window_state.dart';
 import '../models/workspace_state.dart';
@@ -16,10 +18,16 @@ part 'workspace_controller.g.dart';
 @Riverpod(keepAlive: true)
 class WorkspaceController extends _$WorkspaceController {
   int _idCounter = 0;
+  WorkspaceStrings _strings = const DefaultWorkspaceStrings();
 
   @override
   WorkspaceState build() {
     return WorkspaceState.initial;
+  }
+
+  /// Настраивает используемые локализованные строки.
+  void setStrings(WorkspaceStrings strings) {
+    _strings = strings;
   }
 
   String _nextId() {
@@ -27,12 +35,54 @@ class WorkspaceController extends _$WorkspaceController {
     return 'win_$_idCounter';
   }
 
-  /// Обновляет габариты рабочей области экрана.
+  /// Обновляет габариты рабочей области экрана с автоматической адаптацией позиций открытых окон.
   void setScreenSize(Size size) {
     if (state.screenSize == size) {
       return;
     }
-    state = state.copyWith(screenSize: size);
+
+    final double newAvailHeight =
+        (size.height - state.config.taskbarHeight).clamp(0.0, double.infinity);
+    final double newWidth = size.width;
+
+    final List<WindowState> adjustedWindows = state.windows.map((WindowState w) {
+      if (w.isMaximized) {
+        return w.copyWith(
+          x: 0.0,
+          y: 0.0,
+          width: newWidth,
+          height: newAvailHeight,
+        );
+      }
+
+      final WindowConstraints limits =
+          w.effectiveConstraints(state.config.constraints);
+      final double winWidth =
+          w.width.clamp(limits.minWidth, math.max(limits.minWidth, newWidth));
+      final double winHeight =
+          w.height.clamp(limits.minHeight, math.max(limits.minHeight, newAvailHeight));
+
+      final double winX = w.x.clamp(
+        0.0,
+        math.max(0.0, newWidth - winWidth),
+      );
+      final double winY = w.y.clamp(
+        0.0,
+        math.max(0.0, newAvailHeight - winHeight),
+      );
+
+      return w.copyWith(
+        x: winX,
+        y: winY,
+        width: winWidth,
+        height: winHeight,
+      );
+    }).toList();
+
+    state = state.copyWith(
+      screenSize: size,
+      windows: List<WindowState>.unmodifiable(adjustedWindows),
+    );
   }
 
   /// Перемещает окно с идентификатором [id] на передний план (Z-index) и активирует фокус.
@@ -78,6 +128,7 @@ class WorkspaceController extends _$WorkspaceController {
     Offset? at,
     double? width,
     double? height,
+    WindowConstraints? constraints,
   }) {
     final String id = _nextId();
     final double spawnX = at?.dx ?? (60.0 + (_idCounter % 6) * 30.0);
@@ -88,13 +139,14 @@ class WorkspaceController extends _$WorkspaceController {
           tab ??
               WorkspaceTab(
                 id: 'tab_$_idCounter',
-                title: 'Окно $_idCounter',
+                title: _strings.defaultWindowTitle(_idCounter),
               ),
         ];
 
     final WindowState newWindow = WindowState(
       id: id,
       tabs: List<WorkspaceTab>.unmodifiable(initialTabs),
+      constraints: constraints ?? initialTabs.firstOrNull?.constraints,
       x: spawnX.clamp(
         0.0,
         math.max(0.0, state.screenSize.width - 240.0),
@@ -120,6 +172,11 @@ class WorkspaceController extends _$WorkspaceController {
 
   /// Закрывает окно по идентификатору [id].
   void closeWindow(String id) {
+    final WindowState? win = _findWindow(id);
+    if (win != null && !win.isClosable) {
+      return;
+    }
+
     final List<WindowState> updated =
         state.windows.where((WindowState w) => w.id != id).toList();
     final String? nextFocus = state.focusedWindowId == id
@@ -134,6 +191,11 @@ class WorkspaceController extends _$WorkspaceController {
 
   /// Переключает статус минимизации окна в панель задач.
   void toggleMinimize(String id) {
+    final WindowState? targetWin = _findWindow(id);
+    if (targetWin != null && !targetWin.isMinimizable) {
+      return;
+    }
+
     final List<WindowState> updated = state.windows.map((WindowState w) {
       if (w.id == id) {
         return w.copyWith(isMinimized: !w.isMinimized);
@@ -201,7 +263,7 @@ class WorkspaceController extends _$WorkspaceController {
       windows: state.windows,
       screenSize: state.screenSize,
       availableHeight: state.availableHeight,
-      constraints: state.config.constraints,
+      defaultConstraints: state.config.constraints,
     );
 
     state = state.copyWith(
@@ -212,7 +274,7 @@ class WorkspaceController extends _$WorkspaceController {
   /// Применяет раскладку быстрого тайлинга (Quick Tile) к окну [id].
   void tileWindow(String id, String mode) {
     final WindowState? win = _findWindow(id);
-    if (win == null) {
+    if (win == null || !win.canTile) {
       return;
     }
 
@@ -352,7 +414,7 @@ class WorkspaceController extends _$WorkspaceController {
 
     final WorkspaceTab original = win.tabs[index];
     final WorkspaceTab cloned = original.copyWith(
-      title: '${original.title} (Копия)',
+      title: _strings.tabCopySuffix(original.title),
     );
 
     final List<WorkspaceTab> newTabs = List<WorkspaceTab>.from(win.tabs)
@@ -462,6 +524,7 @@ class WorkspaceController extends _$WorkspaceController {
     final WindowState spawned = WindowState(
       id: newId,
       tabs: <WorkspaceTab>[detachedTab],
+      constraints: detachedTab.constraints,
       x: (dropGlobalPos.dx - 60.0).clamp(
         0.0,
         math.max(0.0, state.screenSize.width - 200.0),

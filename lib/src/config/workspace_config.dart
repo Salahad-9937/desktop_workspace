@@ -40,6 +40,39 @@ class WindowConstraints {
     this.maxWidth = kMaxWindowExtent,
     this.maxHeight = kMaxWindowExtent,
   });
+
+  /// Создает копию ограничений с обновлением параметров.
+  WindowConstraints copyWith({
+    double? minWidth,
+    double? minHeight,
+    double? maxWidth,
+    double? maxHeight,
+  }) {
+    return WindowConstraints(
+      minWidth: minWidth ?? this.minWidth,
+      minHeight: minHeight ?? this.minHeight,
+      maxWidth: maxWidth ?? this.maxWidth,
+      maxHeight: maxHeight ?? this.maxHeight,
+    );
+  }
+
+  /// Сериализует ограничения в JSON-словарь.
+  Map<String, Object?> toJson() => <String, Object?>{
+        'minWidth': minWidth,
+        'minHeight': minHeight,
+        'maxWidth': maxWidth,
+        'maxHeight': maxHeight,
+      };
+
+  /// Восстанавливает ограничения из JSON-словаря.
+  factory WindowConstraints.fromJson(Map<String, Object?> json) {
+    return WindowConstraints(
+      minWidth: (json['minWidth'] as num?)?.toDouble() ?? kMinWindowWidth,
+      minHeight: (json['minHeight'] as num?)?.toDouble() ?? kMinWindowHeight,
+      maxWidth: (json['maxWidth'] as num?)?.toDouble() ?? kMaxWindowExtent,
+      maxHeight: (json['maxHeight'] as num?)?.toDouble() ?? kMaxWindowExtent,
+    );
+  }
 }
 
 /// Параметры конфигурации рабочего пространства.
@@ -54,7 +87,7 @@ class WorkspaceConfig {
   /// Порог активации зон прилипания у краев экрана.
   final double edgeSnapTriggerZone;
 
-  /// Геометрические ограничения окон.
+  /// Геометрические ограничения окон по умолчанию.
   final WindowConstraints constraints;
 
   /// Создает экземпляр [WorkspaceConfig].

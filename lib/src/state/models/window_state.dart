@@ -1,5 +1,6 @@
 import 'dart:ui';
 import 'package:flutter/foundation.dart';
+import '../../config/workspace_config.dart';
 import 'workspace_tab.dart';
 
 /// Иммутабельная модель состояния отдельного плавающего окна рабочего пространства.
@@ -35,6 +36,21 @@ class WindowState {
   /// Флаг максимизации окна на всю рабочую область.
   final bool isMaximized;
 
+  /// Персональные геометрические ограничения окна.
+  final WindowConstraints? constraints;
+
+  /// Флаг доступности закрытия окна пользователем.
+  final bool isClosable;
+
+  /// Флаг доступности развертывания окна на весь экран.
+  final bool isMaximizable;
+
+  /// Флаг доступности сворачивания окна в панель задач.
+  final bool isMinimizable;
+
+  /// Флаг доступности быстрого тайлинга окна.
+  final bool canTile;
+
   /// Исходные геометрические координаты окна до максимизации или тайлинга.
   final Rect? restoreRect;
 
@@ -50,6 +66,11 @@ class WindowState {
     this.isPinnedOnTop = false,
     this.isMinimized = false,
     this.isMaximized = false,
+    this.constraints,
+    this.isClosable = true,
+    this.isMaximizable = true,
+    this.isMinimizable = true,
+    this.canTile = true,
     this.restoreRect,
   });
 
@@ -60,6 +81,11 @@ class WindowState {
     }
     final int safeIndex = activeTabIndex.clamp(0, tabs.length - 1);
     return tabs[safeIndex];
+  }
+
+  /// Вычисляет действующие ограничения окна с учетом настроек вкладки и глобального фолбэка.
+  WindowConstraints effectiveConstraints(WindowConstraints fallback) {
+    return constraints ?? activeTab?.constraints ?? fallback;
   }
 
   /// Создает копию окна с обновлением указанных параметров.
@@ -74,6 +100,11 @@ class WindowState {
     bool? isPinnedOnTop,
     bool? isMinimized,
     bool? isMaximized,
+    WindowConstraints? Function()? constraints,
+    bool? isClosable,
+    bool? isMaximizable,
+    bool? isMinimizable,
+    bool? canTile,
     Rect? Function()? restoreRect,
   }) {
     return WindowState(
@@ -87,6 +118,11 @@ class WindowState {
       isPinnedOnTop: isPinnedOnTop ?? this.isPinnedOnTop,
       isMinimized: isMinimized ?? this.isMinimized,
       isMaximized: isMaximized ?? this.isMaximized,
+      constraints: constraints != null ? constraints() : this.constraints,
+      isClosable: isClosable ?? this.isClosable,
+      isMaximizable: isMaximizable ?? this.isMaximizable,
+      isMinimizable: isMinimizable ?? this.isMinimizable,
+      canTile: canTile ?? this.canTile,
       restoreRect: restoreRect != null ? restoreRect() : this.restoreRect,
     );
   }
@@ -103,6 +139,11 @@ class WindowState {
         'isPinnedOnTop': isPinnedOnTop,
         'isMinimized': isMinimized,
         'isMaximized': isMaximized,
+        'isClosable': isClosable,
+        'isMaximizable': isMaximizable,
+        'isMinimizable': isMinimizable,
+        'canTile': canTile,
+        if (constraints != null) 'constraints': constraints!.toJson(),
         if (restoreRect != null)
           'restoreRect': <String, Object?>{
             'left': restoreRect!.left,
@@ -143,6 +184,15 @@ class WindowState {
       }
     }
 
+    final Object? rawConstraints = json['constraints'];
+    WindowConstraints? constraints;
+    if (rawConstraints is Map<String, Object?>) {
+      constraints = WindowConstraints.fromJson(rawConstraints);
+    } else if (rawConstraints is Map) {
+      constraints =
+          WindowConstraints.fromJson(Map<String, Object?>.from(rawConstraints));
+    }
+
     return WindowState(
       id: json['id'] as String? ?? 'win_unknown',
       tabs: tabs.isEmpty
@@ -156,6 +206,11 @@ class WindowState {
       isPinnedOnTop: json['isPinnedOnTop'] as bool? ?? false,
       isMinimized: json['isMinimized'] as bool? ?? false,
       isMaximized: json['isMaximized'] as bool? ?? false,
+      constraints: constraints,
+      isClosable: json['isClosable'] as bool? ?? true,
+      isMaximizable: json['isMaximizable'] as bool? ?? true,
+      isMinimizable: json['isMinimizable'] as bool? ?? true,
+      canTile: json['canTile'] as bool? ?? true,
       restoreRect: restoreRect,
     );
   }

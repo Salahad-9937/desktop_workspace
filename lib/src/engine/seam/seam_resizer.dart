@@ -14,9 +14,10 @@ abstract class SeamResizer {
     required List<WindowState> windows,
     required Size screenSize,
     required double availableHeight,
-    required WindowConstraints constraints,
+    required WindowConstraints defaultConstraints,
   }) {
-    final int targetIndex = windows.indexWhere((WindowState w) => w.id == targetId);
+    final int targetIndex =
+        windows.indexWhere((WindowState w) => w.id == targetId);
     if (targetIndex == -1) {
       return windows;
     }
@@ -80,13 +81,15 @@ abstract class SeamResizer {
           double dx = delta.dx;
 
           for (final WindowState w in leftGroup) {
-            if (w.width + dx < constraints.minWidth) {
-              dx = constraints.minWidth - w.width;
+            final double minW = w.effectiveConstraints(defaultConstraints).minWidth;
+            if (w.width + dx < minW) {
+              dx = minW - w.width;
             }
           }
           for (final WindowState w in rightGroup) {
-            if (w.width - dx < constraints.minWidth) {
-              dx = w.width - constraints.minWidth;
+            final double minW = w.effectiveConstraints(defaultConstraints).minWidth;
+            if (w.width - dx < minW) {
+              dx = w.width - minW;
             }
           }
 
@@ -130,13 +133,15 @@ abstract class SeamResizer {
           double dx = delta.dx;
 
           for (final WindowState w in leftGroup) {
-            if (w.width + dx < constraints.minWidth) {
-              dx = constraints.minWidth - w.width;
+            final double minW = w.effectiveConstraints(defaultConstraints).minWidth;
+            if (w.width + dx < minW) {
+              dx = minW - w.width;
             }
           }
           for (final WindowState w in rightGroup) {
-            if (w.width - dx < constraints.minWidth) {
-              dx = w.width - constraints.minWidth;
+            final double minW = w.effectiveConstraints(defaultConstraints).minWidth;
+            if (w.width - dx < minW) {
+              dx = w.width - minW;
             }
           }
 
@@ -191,13 +196,17 @@ abstract class SeamResizer {
           double dy = delta.dy;
 
           for (final WindowState w in topGroup) {
-            if (w.height + dy < constraints.minHeight) {
-              dy = constraints.minHeight - w.height;
+            final double minH =
+                w.effectiveConstraints(defaultConstraints).minHeight;
+            if (w.height + dy < minH) {
+              dy = minH - w.height;
             }
           }
           for (final WindowState w in bottomGroup) {
-            if (w.height - dy < constraints.minHeight) {
-              dy = w.height - constraints.minHeight;
+            final double minH =
+                w.effectiveConstraints(defaultConstraints).minHeight;
+            if (w.height - dy < minH) {
+              dy = w.height - minH;
             }
           }
 
@@ -243,13 +252,17 @@ abstract class SeamResizer {
           double dy = delta.dy;
 
           for (final WindowState w in topGroup) {
-            if (w.height + dy < constraints.minHeight) {
-              dy = constraints.minHeight - w.height;
+            final double minH =
+                w.effectiveConstraints(defaultConstraints).minHeight;
+            if (w.height + dy < minH) {
+              dy = minH - w.height;
             }
           }
           for (final WindowState w in bottomGroup) {
-            if (w.height - dy < constraints.minHeight) {
-              dy = w.height - constraints.minHeight;
+            final double minH =
+                w.effectiveConstraints(defaultConstraints).minHeight;
+            if (w.height - dy < minH) {
+              dy = w.height - minH;
             }
           }
 
@@ -273,6 +286,9 @@ abstract class SeamResizer {
     // 3. Одиночный свободный ресайз
     if (!horizontalSeamHandled || !verticalSeamHandled) {
       final WindowState currentWin = windowMap[targetId] ?? win;
+      final WindowConstraints targetLimits =
+          currentWin.effectiveConstraints(defaultConstraints);
+
       double x = currentWin.x;
       double y = currentWin.y;
       double w = currentWin.width;
@@ -280,11 +296,11 @@ abstract class SeamResizer {
 
       if (!horizontalSeamHandled) {
         if (touchesEast) {
-          w = (w + delta.dx).clamp(constraints.minWidth, constraints.maxWidth);
+          w = (w + delta.dx).clamp(targetLimits.minWidth, targetLimits.maxWidth);
         }
         if (touchesWest) {
           final double newW =
-              (w - delta.dx).clamp(constraints.minWidth, constraints.maxWidth);
+              (w - delta.dx).clamp(targetLimits.minWidth, targetLimits.maxWidth);
           x += w - newW;
           w = newW;
         }
@@ -292,11 +308,11 @@ abstract class SeamResizer {
 
       if (!verticalSeamHandled) {
         if (touchesSouth) {
-          h = (h + delta.dy).clamp(constraints.minHeight, constraints.maxHeight);
+          h = (h + delta.dy).clamp(targetLimits.minHeight, targetLimits.maxHeight);
         }
         if (touchesNorth) {
           final double newH =
-              (h - delta.dy).clamp(constraints.minHeight, constraints.maxHeight);
+              (h - delta.dy).clamp(targetLimits.minHeight, targetLimits.maxHeight);
           y += h - newH;
           h = newH;
         }
