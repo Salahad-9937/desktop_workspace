@@ -42,14 +42,18 @@ coverage:
 run-example:
     flutter run -t example/main.dart
 
-# Collect repository source code into context.txt dump
-dump-context:
+# Generate Git uncommitted changes report (status, diffs, untracked files)
+diff:
+    bash scripts/diff_changes.sh
+
+# Collect repository source code, prompts, structure, and environment into context.txt
+ctx:
     bash scripts/dump_context.sh
 
 # Run comprehensive verification pipeline (format check, analysis, tests)
 verify: fmt-check check test
 
-# Clean build artifacts, coverage data, and package tool caches
+# Clean build artifacts, coverage data, tool caches, and generated context dumps
 clean:
     flutter clean
-    rm -rf .dart_tool coverage
+    rm -rf .dart_tool coverage context.txt changes.txt
