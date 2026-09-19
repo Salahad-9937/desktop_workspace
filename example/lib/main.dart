@@ -4,7 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 /// Точка входа в демонстрационное приложение многооконного рабочего пространства.
 void main() {
-  _initializePanels();
+  initializePanels();
   runApp(
     const ProviderScope(
       child: DesktopWorkspaceExampleApp(),
@@ -13,7 +13,7 @@ void main() {
 }
 
 /// Выполняет декларативную регистрацию модулей в [PanelRegistry].
-void _initializePanels() {
+void initializePanels() {
   PanelRegistry.instance.clear();
   PanelRegistry.instance.registerAll(<PanelDefinition>[
     PanelDefinition(

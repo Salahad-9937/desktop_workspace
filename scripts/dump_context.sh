@@ -32,7 +32,8 @@ echo "Collecting project context into ${OUTPUT_FILE}..."
   echo "  - [FULL      ] lib/src/l10n         : Контракты локализации и строковые ресурсы"
   echo "  - [FULL      ] lib/src/presentation : Визуальные виджеты (холст, окна, панель задач)"
   echo "  - [FULL      ] test                 : Модульные и интеграционные тесты библиотеки"
-  echo "  - [FULL      ] example              : Демонстрационное приложение использования библиотеки"
+  echo "  - [FULL      ] example/lib          : Точка входа демонстрационного приложения (main.dart)"
+  echo "  - [FULL      ] example/test         : Виджет-тесты демонстрационного приложения (widget_test.dart)"
   echo "  - [FULL      ] scripts              : Shell-скрипты автоматизации сбора контекста и диффов"
   echo "  - [FULL      ] prompts              : Системные регламенты и промты разработки"
   echo "  - [FULL      ] root                 : Корневые файлы конфигурации (pubspec, analysis_options, justfile)"
@@ -48,7 +49,13 @@ echo "Collecting project context into ${OUTPUT_FILE}..."
       -name "build" -o \
       -name "coverage" -o \
       -name ".idea" -o \
-      -name ".vscode" \
+      -name ".vscode" -o \
+      -name "linux" -o \
+      -name "windows" -o \
+      -name "macos" -o \
+      -name "android" -o \
+      -name "ios" -o \
+      -name "web" \
     \) -prune -o -type d -print | sort | while IFS= read -r dir; do
       rel_dir="${dir#"${REPO_ROOT}"}"
       [ -z "${rel_dir}" ] && continue
@@ -57,7 +64,7 @@ echo "Collecting project context into ${OUTPUT_FILE}..."
   echo "--- END OF FILE project_structure_manifest.txt ---"
   echo ""
 
-  # Traverse the repository, prune non-source directories, and append matching files
+  # Traverse the repository, prune build artifacts and native platform directories, then dump source files
   find "${REPO_ROOT}" \
     -type d \( \
       -name ".git" -o \
@@ -67,7 +74,13 @@ echo "Collecting project context into ${OUTPUT_FILE}..."
       -name ".pub" -o \
       -name ".pub-cache" -o \
       -name ".idea" -o \
-      -name ".vscode" \
+      -name ".vscode" -o \
+      -name "linux" -o \
+      -name "windows" -o \
+      -name "macos" -o \
+      -name "android" -o \
+      -name "ios" -o \
+      -name "web" \
     \) -prune -o \
     -type f \( \
       -name "*.dart" -o \
@@ -81,6 +94,7 @@ echo "Collecting project context into ${OUTPUT_FILE}..."
     ! -name "context.txt" \
     ! -name "changes.txt" \
     ! -name "*.g.dart" \
+    ! -name "*.iml" \
     -print | sort | while IFS= read -r file; do
       rel_path="${file#"${REPO_ROOT}/"}"
       echo "--- START OF FILE ${rel_path} ---"

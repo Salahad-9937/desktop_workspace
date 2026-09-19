@@ -5,10 +5,12 @@ default: check test
 # Install project dependencies
 deps:
     flutter pub get
+    cd example && flutter pub get
 
 # Upgrade dependencies to latest compatible versions
 upgrade:
     flutter pub upgrade
+    cd example && flutter pub upgrade
 
 # Run code generation with build_runner (Riverpod generator)
 gen:
@@ -21,6 +23,7 @@ gen-watch:
 # Run strict static code analysis
 check:
     flutter analyze
+    cd example && flutter analyze
 
 # Auto-format all Dart code in place
 fmt:
@@ -33,6 +36,7 @@ fmt-check:
 # Run test suite
 test:
     flutter test
+    cd example && flutter test
 
 # Run test suite with lcov coverage report generation
 coverage:
@@ -40,7 +44,7 @@ coverage:
 
 # Launch the desktop demo example application
 run-example:
-    flutter run -t example/main.dart
+    cd example && flutter run
 
 # Generate Git uncommitted changes report (status, diffs, untracked files)
 diff:
@@ -56,4 +60,5 @@ verify: fmt-check check test
 # Clean build artifacts, coverage data, tool caches, and generated context dumps
 clean:
     flutter clean
-    rm -rf .dart_tool coverage context.txt changes.txt
+    cd example && flutter clean
+    rm -rf .dart_tool example/.dart_tool coverage context.txt changes.txt

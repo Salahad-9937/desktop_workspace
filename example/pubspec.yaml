@@ -1,0 +1,23 @@
+name: desktop_workspace_example
+description: "Demonstration application for desktop_workspace package"
+publish_to: 'none'
+version: 0.1.0
+
+environment:
+  sdk: '>=3.5.0 <4.0.0'
+  flutter: '>=3.24.0'
+
+dependencies:
+  desktop_workspace:
+    path: ../
+  flutter:
+    sdk: flutter
+  flutter_riverpod: ^3.4.3
+
+dev_dependencies:
+  flutter_lints: ^4.0.0
+  flutter_test:
+    sdk: flutter
+
+flutter:
+  uses-material-design: true
