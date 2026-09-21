@@ -162,9 +162,10 @@ class WorkspaceCanvas extends ConsumerWidget {
                             fallbackBuilder: fallbackBuilder,
                             controller: controller,
                           ),
-                          // Слой 4: Интерактивный оверлей единых общих швов
+                          // Слой 4: Интерактивный оверлей единых общих швов и перекрестков
                           SharedSeamOverlay(
                             windows: state.windows,
+                            focusedWindowId: state.focusedWindowId,
                             seamEpsilon: state.config.seamEpsilon,
                             minSeamOverlap: state.config.minSeamOverlap,
                             onResizeSeam: (

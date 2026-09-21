@@ -6,10 +6,13 @@ import '../../model/window_state.dart';
 import '../../theme/workspace_theme.dart';
 import '../../theme/workspace_theme_data.dart';
 
-/// Интерактивный оверлей единых общих швов между состыкованными окнами.
-class SharedSeamOverlay extends StatelessWidget {
+/// Интерактивный оверлей единых общих швов и четырехсторонних перекрестков между окнами.
+class SharedSeamOverlay extends StatefulWidget {
   /// Список всех окон рабочего пространства.
   final List<WindowState> windows;
+
+  /// Идентификатор сфокусированного окна на холсте.
+  final String? focusedWindowId;
 
   /// Допустимый зазор для объединения окон в общий шов.
   final double seamEpsilon;
@@ -32,6 +35,7 @@ class SharedSeamOverlay extends StatelessWidget {
   const SharedSeamOverlay({
     super.key,
     required this.windows,
+    this.focusedWindowId,
     this.seamEpsilon = 6.0,
     this.minSeamOverlap = 24.0,
     required this.onResizeSeam,
@@ -39,35 +43,97 @@ class SharedSeamOverlay extends StatelessWidget {
   });
 
   @override
+  State<SharedSeamOverlay> createState() => _SharedSeamOverlayState();
+}
+
+class _SharedSeamOverlayState extends State<SharedSeamOverlay> {
+  MouseCursor? _activeDragCursor;
+
+  void _onDragStart(MouseCursor cursor) {
+    setState(() => _activeDragCursor = cursor);
+  }
+
+  void _onDragEnd() {
+    setState(() => _activeDragCursor = null);
+    widget.onResizeEnd();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final List<SharedSeam> seams = SeamResizer.findSharedSeams(
-      windows: windows,
-      seamEpsilon: seamEpsilon,
-      minSeamOverlap: minSeamOverlap,
+      windows: widget.windows,
+      seamEpsilon: widget.seamEpsilon,
+      minSeamOverlap: widget.minSeamOverlap,
     );
 
     if (seams.isEmpty) {
       return const SizedBox.shrink();
     }
 
+    final List<SeamIntersection> intersections = SeamDetector.findIntersections(
+      seams: seams,
+      seamEpsilon: widget.seamEpsilon,
+    );
+
     final WorkspaceThemeData theme = WorkspaceTheme.of(context);
 
     return Stack(
       fit: StackFit.expand,
       children: <Widget>[
+        // Слой линий швов со стабильными идентификаторами
         for (final SharedSeam seam in seams)
           _SharedSeamLine(
             key: ValueKey<String>(
-              'seam_${seam.isVertical ? "v" : "h"}_${seam.primaryWindowId}_${seam.secondaryWindowId}',
+              'seam_${seam.isVertical ? "v" : "h"}_${seam.participantWindowIds.join("_")}',
             ),
             seam: seam,
             dividerColor: theme.seamDivider,
-            idleColor: theme.borderInactive,
-            onResize: onResizeSeam,
-            onResizeEnd: onResizeEnd,
+            idleColor: _resolveIdleColor(seam, theme),
+            onResize: widget.onResizeSeam,
+            onDragStart: _onDragStart,
+            onDragEnd: _onDragEnd,
+          ),
+        // Слой центральных перекрестков (4-Way Cross)
+        for (final SeamIntersection cross in intersections)
+          _SeamIntersectionCross(
+            key: ValueKey<String>(
+              'cross_${cross.verticalSeam.participantWindowIds.join("_")}__${cross.horizontalSeam.participantWindowIds.join("_")}',
+            ),
+            cross: cross,
+            accentColor: theme.seamDivider,
+            onResizeSeam: widget.onResizeSeam,
+            onDragStart: _onDragStart,
+            onDragEnd: _onDragEnd,
+          ),
+        // Неблокирующий трекер курсора на весь холст во время активного жеста
+        if (_activeDragCursor != null)
+          Positioned.fill(
+            child: Listener(
+              behavior: HitTestBehavior.translucent,
+              onPointerUp: (_) => _onDragEnd(),
+              onPointerCancel: (_) => _onDragEnd(),
+              child: MouseRegion(
+                cursor: _activeDragCursor!,
+                opaque: false,
+              ),
+            ),
           ),
       ],
     );
+  }
+
+  Color _resolveIdleColor(SharedSeam seam, WorkspaceThemeData theme) {
+    if (widget.focusedWindowId == null) {
+      return theme.borderInactive;
+    }
+    final bool hasFocus =
+        seam.participantWindowIds.contains(widget.focusedWindowId) ||
+            seam.primaryWindowId == widget.focusedWindowId ||
+            seam.secondaryWindowId == widget.focusedWindowId;
+
+    return hasFocus
+        ? theme.borderActive.withValues(alpha: 0.85)
+        : theme.borderInactive;
   }
 }
 
@@ -81,7 +147,8 @@ class _SharedSeamLine extends StatefulWidget {
     double deltaX,
     double deltaY,
   ) onResize;
-  final VoidCallback onResizeEnd;
+  final void Function(MouseCursor cursor) onDragStart;
+  final VoidCallback onDragEnd;
 
   const _SharedSeamLine({
     super.key,
@@ -89,7 +156,8 @@ class _SharedSeamLine extends StatefulWidget {
     required this.dividerColor,
     required this.idleColor,
     required this.onResize,
-    required this.onResizeEnd,
+    required this.onDragStart,
+    required this.onDragEnd,
   });
 
   @override
@@ -102,8 +170,8 @@ class _SharedSeamLineState extends State<_SharedSeamLine> {
 
   @override
   Widget build(BuildContext context) {
-    // Узкая сенсорная полоса (6 px) для сохранения легкого доступа к ручкам одиночного окна
-    const double hitThickness = 6.0;
+    // В активном драге область захвата расширяется до 24 px для исключения срыва курсора
+    final double hitThickness = _isDragging ? 24.0 : 6.0;
     final bool isActive = _isHovered || _isDragging;
 
     final double left;
@@ -138,7 +206,10 @@ class _SharedSeamLineState extends State<_SharedSeamLine> {
         onExit: (_) => setState(() => _isHovered = false),
         child: GestureDetector(
           behavior: HitTestBehavior.translucent,
-          onPanStart: (_) => setState(() => _isDragging = true),
+          onPanStart: (_) {
+            setState(() => _isDragging = true);
+            widget.onDragStart(cursor);
+          },
           onPanUpdate: (DragUpdateDetails details) {
             widget.onResize(
               widget.seam.primaryWindowId,
@@ -149,11 +220,11 @@ class _SharedSeamLineState extends State<_SharedSeamLine> {
           },
           onPanEnd: (_) {
             setState(() => _isDragging = false);
-            widget.onResizeEnd();
+            widget.onDragEnd();
           },
           onPanCancel: () {
             setState(() => _isDragging = false);
-            widget.onResizeEnd();
+            widget.onDragEnd();
           },
           child: Center(
             child: AnimatedContainer(
@@ -168,6 +239,106 @@ class _SharedSeamLineState extends State<_SharedSeamLine> {
                         BoxShadow(
                           color: widget.dividerColor.withValues(alpha: 0.7),
                           blurRadius: 4.0,
+                        ),
+                      ]
+                    : null,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SeamIntersectionCross extends StatefulWidget {
+  final SeamIntersection cross;
+  final Color accentColor;
+  final void Function(
+    String windowId,
+    ResizeDirection direction,
+    double deltaX,
+    double deltaY,
+  ) onResizeSeam;
+  final void Function(MouseCursor cursor) onDragStart;
+  final VoidCallback onDragEnd;
+
+  const _SeamIntersectionCross({
+    super.key,
+    required this.cross,
+    required this.accentColor,
+    required this.onResizeSeam,
+    required this.onDragStart,
+    required this.onDragEnd,
+  });
+
+  @override
+  State<_SeamIntersectionCross> createState() => _SeamIntersectionCrossState();
+}
+
+class _SeamIntersectionCrossState extends State<_SeamIntersectionCross> {
+  bool _isHovered = false;
+  bool _isDragging = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final double crossHitSize = _isDragging ? 28.0 : 14.0;
+    final bool isActive = _isHovered || _isDragging;
+
+    return Positioned(
+      left: widget.cross.x - (crossHitSize / 2.0),
+      top: widget.cross.y - (crossHitSize / 2.0),
+      width: crossHitSize,
+      height: crossHitSize,
+      child: MouseRegion(
+        cursor: SystemMouseCursors.allScroll,
+        onEnter: (_) => setState(() => _isHovered = true),
+        onExit: (_) => setState(() => _isHovered = false),
+        child: GestureDetector(
+          behavior: HitTestBehavior.translucent,
+          onPanStart: (_) {
+            setState(() => _isDragging = true);
+            widget.onDragStart(SystemMouseCursors.allScroll);
+          },
+          onPanUpdate: (DragUpdateDetails details) {
+            widget.onResizeSeam(
+              widget.cross.horizontalSeam.primaryWindowId,
+              widget.cross.horizontalSeam.direction,
+              0.0,
+              details.delta.dy,
+            );
+            widget.onResizeSeam(
+              widget.cross.verticalSeam.primaryWindowId,
+              widget.cross.verticalSeam.direction,
+              details.delta.dx,
+              0.0,
+            );
+          },
+          onPanEnd: (_) {
+            setState(() => _isDragging = false);
+            widget.onDragEnd();
+          },
+          onPanCancel: () {
+            setState(() => _isDragging = false);
+            widget.onDragEnd();
+          },
+          child: Center(
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 120),
+              width: isActive ? 10.0 : 6.0,
+              height: isActive ? 10.0 : 6.0,
+              decoration: BoxDecoration(
+                color: widget.accentColor,
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: Colors.white.withValues(alpha: 0.9),
+                  width: 1.0,
+                ),
+                boxShadow: isActive
+                    ? <BoxShadow>[
+                        BoxShadow(
+                          color: widget.accentColor.withValues(alpha: 0.8),
+                          blurRadius: 6.0,
                         ),
                       ]
                     : null,

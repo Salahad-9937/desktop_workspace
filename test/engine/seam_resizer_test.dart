@@ -43,8 +43,126 @@ void main() {
       expect(seams.first.start, 0.0);
       expect(seams.first.end, 600.0);
       expect(seams.first.primaryWindowId, 'win_a');
-      expect(seams.first.secondaryWindowId, 'win_b');
       expect(seams.first.direction, ResizeDirection.east);
+    });
+
+    test('Слияние Т-образного стыка (1 большое окно к 2 малым окнам)', () {
+      const WindowState winLeft = WindowState(
+        id: 'win_left',
+        x: 0.0,
+        y: 0.0,
+        width: 400.0,
+        height: 800.0,
+        tabs: <WorkspaceTab>[WorkspaceTab(id: 'tl', typeId: 'v', title: 'L')],
+      );
+
+      const WindowState winTopRight = WindowState(
+        id: 'win_top_right',
+        x: 400.0,
+        y: 0.0,
+        width: 400.0,
+        height: 300.0,
+        tabs: <WorkspaceTab>[WorkspaceTab(id: 'ttr', typeId: 'v', title: 'TR')],
+      );
+
+      const WindowState winBottomRight = WindowState(
+        id: 'win_bottom_right',
+        x: 400.0,
+        y: 300.0,
+        width: 400.0,
+        height: 500.0,
+        tabs: <WorkspaceTab>[WorkspaceTab(id: 'tbr', typeId: 'v', title: 'BR')],
+      );
+
+      final List<SharedSeam> seams = SeamResizer.findSharedSeams(
+        windows: <WindowState>[winLeft, winTopRight, winBottomRight],
+        seamEpsilon: 6.0,
+        minSeamOverlap: 24.0,
+      );
+
+      final List<SharedSeam> vertical =
+          seams.where((SharedSeam s) => s.isVertical).toList();
+      expect(vertical.length, 1);
+      expect(vertical.first.position, 400.0);
+      expect(vertical.first.start, 0.0);
+      expect(vertical.first.end, 800.0);
+      expect(vertical.first.participantWindowIds.contains('win_left'), isTrue);
+      expect(vertical.first.participantWindowIds.contains('win_top_right'), isTrue);
+      expect(vertical.first.participantWindowIds.contains('win_bottom_right'), isTrue);
+
+      final List<WindowState> resized = SeamResizer.resizeSeam(
+        primaryWindow: winLeft,
+        allWindows: <WindowState>[winLeft, winTopRight, winBottomRight],
+        direction: ResizeDirection.east,
+        deltaX: -50.0,
+        deltaY: 0.0,
+        seamEpsilon: 6.0,
+        minSeamOverlap: 24.0,
+        globalConstraints: constraints,
+      );
+
+      final WindowState resLeft =
+          resized.firstWhere((WindowState w) => w.id == 'win_left');
+      final WindowState resTR =
+          resized.firstWhere((WindowState w) => w.id == 'win_top_right');
+      final WindowState resBR =
+          resized.firstWhere((WindowState w) => w.id == 'win_bottom_right');
+
+      expect(resLeft.width, 350.0);
+      expect(resTR.x, 350.0);
+      expect(resTR.width, 450.0);
+      expect(resBR.x, 350.0);
+      expect(resBR.width, 450.0);
+    });
+
+    test('Обнаружение 4-Way Cross перекрестка в сетке 2x2', () {
+      const WindowState tl = WindowState(
+        id: 'tl',
+        x: 0.0,
+        y: 0.0,
+        width: 400.0,
+        height: 400.0,
+        tabs: <WorkspaceTab>[WorkspaceTab(id: '1', typeId: 'v', title: '1')],
+      );
+      const WindowState tr = WindowState(
+        id: 'tr',
+        x: 400.0,
+        y: 0.0,
+        width: 400.0,
+        height: 400.0,
+        tabs: <WorkspaceTab>[WorkspaceTab(id: '2', typeId: 'v', title: '2')],
+      );
+      const WindowState bl = WindowState(
+        id: 'bl',
+        x: 0.0,
+        y: 400.0,
+        width: 400.0,
+        height: 400.0,
+        tabs: <WorkspaceTab>[WorkspaceTab(id: '3', typeId: 'v', title: '3')],
+      );
+      const WindowState br = WindowState(
+        id: 'br',
+        x: 400.0,
+        y: 400.0,
+        width: 400.0,
+        height: 400.0,
+        tabs: <WorkspaceTab>[WorkspaceTab(id: '4', typeId: 'v', title: '4')],
+      );
+
+      final List<SharedSeam> seams = SeamResizer.findSharedSeams(
+        windows: <WindowState>[tl, tr, bl, br],
+        seamEpsilon: 6.0,
+        minSeamOverlap: 24.0,
+      );
+
+      final List<SeamIntersection> crosses = SeamDetector.findIntersections(
+        seams: seams,
+        seamEpsilon: 6.0,
+      );
+
+      expect(crosses.length, 1);
+      expect(crosses.first.x, 400.0);
+      expect(crosses.first.y, 400.0);
     });
 
     test('Детекция общего шва hasSharedSeam между соприкасающимися окнами', () {

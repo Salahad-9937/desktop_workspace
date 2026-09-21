@@ -9,7 +9,7 @@ import 'workspace_state.dart';
 class WindowResizeOps {
   const WindowResizeOps._();
 
-  /// Выполняет деформацию габаритов окна с магнитным притягиванием к граням и швам.
+  /// Выполняет деформацию габаритов окна с магнитным притягиванием к граням, швам и долям холста.
   static WorkspaceState resizeWindow({
     required WorkspaceState state,
     required String windowId,
@@ -28,22 +28,89 @@ class WindowResizeOps {
 
     final WindowState primary = state.windows[index];
 
-    // Если активен режим масштабирования состыкованной группы по общему шву
+    // Масштабирование состыкованной группы по общему шву с примагничиванием к долям холста
     if (enableSeamResizing) {
+      double effectiveDeltaX = deltaX;
+      double effectiveDeltaY = deltaY;
+
+      double? nextRawX = state.rawDragX;
+      double? nextRawY = state.rawDragY;
+
+      if (enableSnapping) {
+        const double magnetThreshold = 14.0;
+
+        // Магнитный захват вертикального шва (X) к долям холста: 50%, 33.3%, 66.6%, 25%, 75%
+        if (direction.affectsLeft || direction.affectsRight) {
+          final double seamX = direction.affectsRight
+              ? primary.rect.right
+              : primary.rect.left;
+          final double rawX = (state.rawDragX ?? seamX) + deltaX;
+          nextRawX = rawX;
+
+          final double w = state.availableArea.width;
+          final List<double> snapTargetsX = <double>[
+            w * 0.5,
+            w * (1.0 / 3.0),
+            w * (2.0 / 3.0),
+            w * 0.25,
+            w * 0.75,
+          ];
+
+          double targetX = rawX;
+          for (final double snapPoint in snapTargetsX) {
+            if ((rawX - snapPoint).abs() < magnetThreshold) {
+              targetX = snapPoint;
+              break;
+            }
+          }
+          effectiveDeltaX = targetX - seamX;
+        }
+
+        // Магнитный захват горизонтального шва (Y) к долям холста
+        if (direction.affectsTop || direction.affectsBottom) {
+          final double seamY = direction.affectsBottom
+              ? primary.rect.bottom
+              : primary.rect.top;
+          final double rawY = (state.rawDragY ?? seamY) + deltaY;
+          nextRawY = rawY;
+
+          final double h = state.availableArea.height;
+          final List<double> snapTargetsY = <double>[
+            h * 0.5,
+            h * (1.0 / 3.0),
+            h * (2.0 / 3.0),
+            h * 0.25,
+            h * 0.75,
+          ];
+
+          double targetY = rawY;
+          for (final double snapPoint in snapTargetsY) {
+            if ((rawY - snapPoint).abs() < magnetThreshold) {
+              targetY = snapPoint;
+              break;
+            }
+          }
+          effectiveDeltaY = targetY - seamY;
+        }
+      }
+
       final List<WindowState> resized = SeamResizer.resizeSeam(
         primaryWindow: primary,
         allWindows: state.windows,
         direction: direction,
-        deltaX: deltaX,
-        deltaY: deltaY,
+        deltaX: effectiveDeltaX,
+        deltaY: effectiveDeltaY,
         seamEpsilon: state.config.seamEpsilon,
         minSeamOverlap: state.config.minSeamOverlap,
         globalConstraints: state.config.defaultConstraints,
       );
 
+      // Сохраняем текущий активный фокус окна без принудительной смены на ведущее окно шва
       return state.copyWith(
         windows: resized,
-        focusedWindowId: windowId,
+        focusedWindowId: state.focusedWindowId,
+        rawDragX: nextRawX,
+        rawDragY: nextRawY,
       );
     }
 

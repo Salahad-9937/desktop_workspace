@@ -9,7 +9,7 @@ typedef OnResizeDeltaCallback = void Function(
   double deltaY,
 );
 
-/// Восьмизонный сенсорный периметр изменения габаритов окна.
+/// Восьмизонный сенсорный периметр изменения габаритов окна с бесконфликтными верхними зонами.
 class WindowResizeEdge extends StatelessWidget {
   /// Функция обратного вызова при смещении ручки ресайза.
   final OnResizeDeltaCallback onResize;
@@ -17,8 +17,11 @@ class WindowResizeEdge extends StatelessWidget {
   /// Функция обратного вызова при завершении жеста изменения размера.
   final VoidCallback? onResizeEnd;
 
-  /// Толщина линейных сенсорных полос по периметру.
+  /// Толщина линейных сенсорных полос по бокам и снизу.
   final double edgeThickness;
+
+  /// Уменьшенная толщина верхней сенсорной полосы для исключения конфликтов с кнопками заголовка.
+  final double topEdgeThickness;
 
   /// Размер квадратных угловых секторов захвата.
   final double cornerSize;
@@ -29,20 +32,24 @@ class WindowResizeEdge extends StatelessWidget {
     required this.onResize,
     this.onResizeEnd,
     this.edgeThickness = 10.0,
+    this.topEdgeThickness = 3.0,
     this.cornerSize = 12.0,
   });
 
   @override
   Widget build(BuildContext context) {
+    // Резерв ширины вверху справа под системные кнопки заголовка (Pin, Tile, Min, Max, Close)
+    const double windowControlsReserve = 170.0;
+
     return Stack(
       fit: StackFit.expand,
       children: <Widget>[
-        // Северное ребро (N)
+        // Северное ребро (N): тонкая кромка 3 px, полностью отведенная от блока правых кнопок
         Positioned(
           top: 0.0,
           left: cornerSize,
-          right: cornerSize,
-          height: edgeThickness,
+          right: cornerSize + windowControlsReserve,
+          height: topEdgeThickness,
           child: _ResizeHandle(
             direction: ResizeDirection.north,
             cursor: SystemMouseCursors.resizeUpDown,
@@ -89,28 +96,15 @@ class WindowResizeEdge extends StatelessWidget {
             onResizeEnd: onResizeEnd,
           ),
         ),
-        // Северо-западный угол (NW)
+        // Северо-западный угол (NW): микро-сектор 4x4 px
         Positioned(
           top: 0.0,
           left: 0.0,
-          width: cornerSize,
-          height: cornerSize,
+          width: 4.0,
+          height: 4.0,
           child: _ResizeHandle(
             direction: ResizeDirection.northWest,
             cursor: SystemMouseCursors.resizeUpLeftDownRight,
-            onResize: onResize,
-            onResizeEnd: onResizeEnd,
-          ),
-        ),
-        // Северо-восточный угол (NE)
-        Positioned(
-          top: 0.0,
-          right: 0.0,
-          width: cornerSize,
-          height: cornerSize,
-          child: _ResizeHandle(
-            direction: ResizeDirection.northEast,
-            cursor: SystemMouseCursors.resizeUpRightDownLeft,
             onResize: onResize,
             onResizeEnd: onResizeEnd,
           ),

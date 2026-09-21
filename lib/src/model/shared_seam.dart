@@ -17,8 +17,11 @@ class SharedSeam {
   /// Идентификатор ведущего окна для расчета смещения.
   final String primaryWindowId;
 
-  /// Идентификатор ведомого смежного окна.
+  /// Идентификатор первого смежного ведомого окна.
   final String secondaryWindowId;
+
+  /// Список идентификаторов всех окон, прилегающих к данному непрерывному шву.
+  final List<String> participantWindowIds;
 
   /// Направление изменения габаритов для ведущего окна.
   final ResizeDirection direction;
@@ -31,6 +34,30 @@ class SharedSeam {
     required this.end,
     required this.primaryWindowId,
     required this.secondaryWindowId,
+    this.participantWindowIds = const <String>[],
     required this.direction,
+  });
+}
+
+/// Точка перекрестного пересечения вертикального и горизонтального общих швов (4-Way Cross).
+class SeamIntersection {
+  /// Физическая координата X центра перекрестка.
+  final double x;
+
+  /// Физическая координата Y центра перекрестка.
+  final double y;
+
+  /// Вертикальный шов, проходящий через перекресток.
+  final SharedSeam verticalSeam;
+
+  /// Горизонтальный шов, проходящий через перекресток.
+  final SharedSeam horizontalSeam;
+
+  /// Создает неизменяемый экземпляр [SeamIntersection].
+  const SeamIntersection({
+    required this.x,
+    required this.y,
+    required this.verticalSeam,
+    required this.horizontalSeam,
   });
 }

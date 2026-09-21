@@ -43,7 +43,7 @@ class SeamResizer {
     );
   }
 
-  /// Выполняет синхронную деформацию состыкованных окон вдоль активного вектора.
+  /// Выполняет синхронную деформацию всех состыкованных окон вдоль непрерывного ребра.
   static List<WindowState> resizeSeam({
     required WindowState primaryWindow,
     required List<WindowState> allWindows,
@@ -62,16 +62,16 @@ class SeamResizer {
       for (final WindowState w in allWindows) w.id: w,
     };
 
-    // 1. Горизонтальная составляющая (Запад / Восток / Диагонали)
+    // 1. Горизонтальная составляющая: масштабирование вертикального шва
     if (direction.affectsLeft || direction.affectsRight) {
-      final ResizeDirection hDirection = direction.affectsRight
-          ? ResizeDirection.east
-          : ResizeDirection.west;
+      final double seamPos = direction.affectsRight
+          ? primaryWindow.rect.right
+          : primaryWindow.rect.left;
 
-      _applyHorizontalSeam(
+      _applyContinuousVerticalSeam(
         primaryWindow: primaryWindow,
+        seamPosition: seamPos,
         allWindows: allWindows,
-        direction: hDirection,
         deltaX: deltaX,
         seamEpsilon: seamEpsilon,
         minSeamOverlap: minSeamOverlap,
@@ -80,22 +80,22 @@ class SeamResizer {
       );
     }
 
-    // 2. Вертикальная составляющая (Север / Юг / Диагонали)
+    // 2. Вертикальная составляющая: масштабирование горизонтального шва
     if (direction.affectsTop || direction.affectsBottom) {
-      final ResizeDirection vDirection = direction.affectsBottom
-          ? ResizeDirection.south
-          : ResizeDirection.north;
-
       final WindowState currentPrimary =
           updatedWindows[primaryWindow.id] ?? primaryWindow;
+      final double seamPos = direction.affectsBottom
+          ? currentPrimary.rect.bottom
+          : currentPrimary.rect.top;
+
       final List<WindowState> currentAll = allWindows
           .map((WindowState w) => updatedWindows[w.id] ?? w)
           .toList(growable: false);
 
-      _applyVerticalSeam(
+      _applyContinuousHorizontalSeam(
         primaryWindow: currentPrimary,
+        seamPosition: seamPos,
         allWindows: currentAll,
-        direction: vDirection,
         deltaY: deltaY,
         seamEpsilon: seamEpsilon,
         minSeamOverlap: minSeamOverlap,
@@ -109,260 +109,175 @@ class SeamResizer {
         .toList(growable: false);
   }
 
-  static void _applyHorizontalSeam({
+  static void _applyContinuousVerticalSeam({
     required WindowState primaryWindow,
+    required double seamPosition,
     required List<WindowState> allWindows,
-    required ResizeDirection direction,
     required double deltaX,
     required double seamEpsilon,
     required double minSeamOverlap,
     required WindowConstraints globalConstraints,
     required Map<String, WindowState> updatedMap,
   }) {
-    final WindowConstraints primaryConstraints =
-        primaryWindow.resolveEffectiveConstraints(globalConstraints);
-
-    if (direction == ResizeDirection.east) {
-      final double seamPosition = primaryWindow.rect.right;
-      final List<WindowState> rightNeighbors =
-          allWindows.where((WindowState w) {
-        if (w.id == primaryWindow.id || w.isMinimized) {
-          return false;
-        }
-        final bool isSeamContinuous =
-            (w.rect.left - seamPosition).abs() <= seamEpsilon;
-        final double overlapY = math.max(
-          0.0,
-          math.min(primaryWindow.rect.bottom, w.rect.bottom) -
-              math.max(primaryWindow.rect.top, w.rect.top),
-        );
-        return isSeamContinuous && overlapY >= minSeamOverlap;
-      }).toList();
-
-      if (rightNeighbors.isEmpty) {
-        final double newWidth =
-            primaryConstraints.clampWidth(primaryWindow.width + deltaX);
-        updatedMap[primaryWindow.id] =
-            primaryWindow.copyWith(width: newWidth);
-        return;
+    // Окна слева от шва
+    final List<WindowState> leftWindows = allWindows.where((WindowState w) {
+      if (w.isMinimized) {
+        return false;
       }
+      return (w.rect.right - seamPosition).abs() <= seamEpsilon;
+    }).toList();
 
-      double maxAllowedPositive =
-          primaryConstraints.maxWidth - primaryWindow.width;
-      double maxAllowedNegative =
-          primaryWindow.width - primaryConstraints.minWidth;
-
-      for (final WindowState neighbor in rightNeighbors) {
-        final WindowConstraints nConstraints =
-            neighbor.resolveEffectiveConstraints(globalConstraints);
-        final double neighborShrink = neighbor.width - nConstraints.minWidth;
-        final double neighborGrow = nConstraints.maxWidth - neighbor.width;
-
-        maxAllowedPositive = math.min(maxAllowedPositive, neighborShrink);
-        maxAllowedNegative = math.min(maxAllowedNegative, neighborGrow);
+    // Окна справа от шва
+    final List<WindowState> rightWindows = allWindows.where((WindowState w) {
+      if (w.isMinimized) {
+        return false;
       }
+      return (w.rect.left - seamPosition).abs() <= seamEpsilon;
+    }).toList();
 
-      final double effectiveDelta =
-          deltaX.clamp(-maxAllowedNegative, maxAllowedPositive);
-
-      updatedMap[primaryWindow.id] = primaryWindow.copyWith(
-        width: primaryWindow.width + effectiveDelta,
+    // Обработка свободного края при отсутствии смежных окон с противоположной стороны
+    if (rightWindows.isEmpty) {
+      final WindowConstraints primaryConstraints =
+          primaryWindow.resolveEffectiveConstraints(globalConstraints);
+      final double newWidth =
+          primaryConstraints.clampWidth(primaryWindow.width + deltaX);
+      updatedMap[primaryWindow.id] = (updatedMap[primaryWindow.id] ?? primaryWindow).copyWith(
+        width: newWidth,
       );
+      return;
+    }
 
-      for (final WindowState neighbor in rightNeighbors) {
-        updatedMap[neighbor.id] = neighbor.copyWith(
-          x: neighbor.x + effectiveDelta,
-          width: neighbor.width - effectiveDelta,
-        );
-      }
-    } else if (direction == ResizeDirection.west) {
-      final double seamPosition = primaryWindow.rect.left;
-      final List<WindowState> leftNeighbors = allWindows.where((WindowState w) {
-        if (w.id == primaryWindow.id || w.isMinimized) {
-          return false;
-        }
-        final bool isSeamContinuous =
-            (w.rect.right - seamPosition).abs() <= seamEpsilon;
-        final double overlapY = math.max(
-          0.0,
-          math.min(primaryWindow.rect.bottom, w.rect.bottom) -
-              math.max(primaryWindow.rect.top, w.rect.top),
-        );
-        return isSeamContinuous && overlapY >= minSeamOverlap;
-      }).toList();
-
-      if (leftNeighbors.isEmpty) {
-        final double targetWidth = primaryWindow.width - deltaX;
-        final double clampedWidth = primaryConstraints.clampWidth(targetWidth);
-        final double appliedDelta = primaryWindow.width - clampedWidth;
-        updatedMap[primaryWindow.id] = primaryWindow.copyWith(
-          x: primaryWindow.x + appliedDelta,
-          width: clampedWidth,
-        );
-        return;
-      }
-
-      double maxAllowedPrimaryShrink =
-          primaryWindow.width - primaryConstraints.minWidth;
-      double maxAllowedPrimaryGrow =
-          primaryConstraints.maxWidth - primaryWindow.width;
-
-      for (final WindowState neighbor in leftNeighbors) {
-        final WindowConstraints nConstraints =
-            neighbor.resolveEffectiveConstraints(globalConstraints);
-        final double neighborGrow = nConstraints.maxWidth - neighbor.width;
-        final double neighborShrink = neighbor.width - nConstraints.minWidth;
-
-        maxAllowedPrimaryShrink =
-            math.min(maxAllowedPrimaryShrink, neighborGrow);
-        maxAllowedPrimaryGrow =
-            math.min(maxAllowedPrimaryGrow, neighborShrink);
-      }
-
-      final double effectiveDelta =
-          deltaX.clamp(-maxAllowedPrimaryGrow, maxAllowedPrimaryShrink);
-
-      updatedMap[primaryWindow.id] = primaryWindow.copyWith(
-        x: primaryWindow.x + effectiveDelta,
-        width: primaryWindow.width - effectiveDelta,
+    if (leftWindows.isEmpty) {
+      final WindowConstraints primaryConstraints =
+          primaryWindow.resolveEffectiveConstraints(globalConstraints);
+      final double targetW = primaryWindow.width - deltaX;
+      final double clampedW = primaryConstraints.clampWidth(targetW);
+      final double appliedDelta = primaryWindow.width - clampedW;
+      updatedMap[primaryWindow.id] = (updatedMap[primaryWindow.id] ?? primaryWindow).copyWith(
+        x: primaryWindow.x + appliedDelta,
+        width: clampedW,
       );
+      return;
+    }
 
-      for (final WindowState neighbor in leftNeighbors) {
-        updatedMap[neighbor.id] = neighbor.copyWith(
-          width: neighbor.width + effectiveDelta,
-        );
-      }
+    double maxAllowedPositive = double.infinity;
+    double maxAllowedNegative = double.infinity;
+
+    for (final WindowState left in leftWindows) {
+      final WindowConstraints c =
+          left.resolveEffectiveConstraints(globalConstraints);
+      maxAllowedPositive = math.min(maxAllowedPositive, c.maxWidth - left.width);
+      maxAllowedNegative = math.min(maxAllowedNegative, left.width - c.minWidth);
+    }
+
+    for (final WindowState right in rightWindows) {
+      final WindowConstraints c =
+          right.resolveEffectiveConstraints(globalConstraints);
+      maxAllowedPositive = math.min(maxAllowedPositive, right.width - c.minWidth);
+      maxAllowedNegative = math.min(maxAllowedNegative, c.maxWidth - right.width);
+    }
+
+    final double effectiveDelta =
+        deltaX.clamp(-maxAllowedNegative, maxAllowedPositive);
+
+    for (final WindowState left in leftWindows) {
+      updatedMap[left.id] = left.copyWith(
+        width: left.width + effectiveDelta,
+      );
+    }
+
+    for (final WindowState right in rightWindows) {
+      updatedMap[right.id] = right.copyWith(
+        x: right.x + effectiveDelta,
+        width: right.width - effectiveDelta,
+      );
     }
   }
 
-  static void _applyVerticalSeam({
+  static void _applyContinuousHorizontalSeam({
     required WindowState primaryWindow,
+    required double seamPosition,
     required List<WindowState> allWindows,
-    required ResizeDirection direction,
     required double deltaY,
     required double seamEpsilon,
     required double minSeamOverlap,
     required WindowConstraints globalConstraints,
     required Map<String, WindowState> updatedMap,
   }) {
-    final WindowConstraints primaryConstraints =
-        primaryWindow.resolveEffectiveConstraints(globalConstraints);
-
-    if (direction == ResizeDirection.south) {
-      final double seamPosition = primaryWindow.rect.bottom;
-      final List<WindowState> bottomNeighbors =
-          allWindows.where((WindowState w) {
-        if (w.id == primaryWindow.id || w.isMinimized) {
-          return false;
-        }
-        final bool isSeamContinuous =
-            (w.rect.top - seamPosition).abs() <= seamEpsilon;
-        final double overlapX = math.max(
-          0.0,
-          math.min(primaryWindow.rect.right, w.rect.right) -
-              math.max(primaryWindow.rect.left, w.rect.left),
-        );
-        return isSeamContinuous && overlapX >= minSeamOverlap;
-      }).toList();
-
-      if (bottomNeighbors.isEmpty) {
-        final double newHeight =
-            primaryConstraints.clampHeight(primaryWindow.height + deltaY);
-        updatedMap[primaryWindow.id] =
-            primaryWindow.copyWith(height: newHeight);
-        return;
+    // Окна сверху от шва
+    final List<WindowState> topWindows = allWindows.where((WindowState w) {
+      if (w.isMinimized) {
+        return false;
       }
+      return (w.rect.bottom - seamPosition).abs() <= seamEpsilon;
+    }).toList();
 
-      double maxAllowedPositive =
-          primaryConstraints.maxHeight - primaryWindow.height;
-      double maxAllowedNegative =
-          primaryWindow.height - primaryConstraints.minHeight;
-
-      for (final WindowState neighbor in bottomNeighbors) {
-        final WindowConstraints nConstraints =
-            neighbor.resolveEffectiveConstraints(globalConstraints);
-        final double neighborShrink =
-            neighbor.height - nConstraints.minHeight;
-        final double neighborGrow =
-            nConstraints.maxHeight - neighbor.height;
-
-        maxAllowedPositive = math.min(maxAllowedPositive, neighborShrink);
-        maxAllowedNegative = math.min(maxAllowedNegative, neighborGrow);
+    // Окна снизу от шва
+    final List<WindowState> bottomWindows = allWindows.where((WindowState w) {
+      if (w.isMinimized) {
+        return false;
       }
+      return (w.rect.top - seamPosition).abs() <= seamEpsilon;
+    }).toList();
 
-      final double effectiveDelta =
-          deltaY.clamp(-maxAllowedNegative, maxAllowedPositive);
-
-      updatedMap[primaryWindow.id] = primaryWindow.copyWith(
-        height: primaryWindow.height + effectiveDelta,
+    // Обработка свободного края при отсутствии смежных окон снизу/сверху
+    if (bottomWindows.isEmpty) {
+      final WindowConstraints primaryConstraints =
+          primaryWindow.resolveEffectiveConstraints(globalConstraints);
+      final double newHeight =
+          primaryConstraints.clampHeight(primaryWindow.height + deltaY);
+      updatedMap[primaryWindow.id] = (updatedMap[primaryWindow.id] ?? primaryWindow).copyWith(
+        height: newHeight,
       );
+      return;
+    }
 
-      for (final WindowState neighbor in bottomNeighbors) {
-        updatedMap[neighbor.id] = neighbor.copyWith(
-          y: neighbor.y + effectiveDelta,
-          height: neighbor.height - effectiveDelta,
-        );
-      }
-    } else if (direction == ResizeDirection.north) {
-      final double seamPosition = primaryWindow.rect.top;
-      final List<WindowState> topNeighbors = allWindows.where((WindowState w) {
-        if (w.id == primaryWindow.id || w.isMinimized) {
-          return false;
-        }
-        final bool isSeamContinuous =
-            (w.rect.bottom - seamPosition).abs() <= seamEpsilon;
-        final double overlapX = math.max(
-          0.0,
-          math.min(primaryWindow.rect.right, w.rect.right) -
-              math.max(primaryWindow.rect.left, w.rect.left),
-        );
-        return isSeamContinuous && overlapX >= minSeamOverlap;
-      }).toList();
-
-      if (topNeighbors.isEmpty) {
-        final double targetHeight = primaryWindow.height - deltaY;
-        final double clampedHeight =
-            primaryConstraints.clampHeight(targetHeight);
-        final double appliedDelta = primaryWindow.height - clampedHeight;
-        updatedMap[primaryWindow.id] = primaryWindow.copyWith(
-          y: primaryWindow.y + appliedDelta,
-          height: clampedHeight,
-        );
-        return;
-      }
-
-      double maxAllowedPrimaryShrink =
-          primaryWindow.height - primaryConstraints.minHeight;
-      double maxAllowedPrimaryGrow =
-          primaryConstraints.maxHeight - primaryWindow.height;
-
-      for (final WindowState neighbor in topNeighbors) {
-        final WindowConstraints nConstraints =
-            neighbor.resolveEffectiveConstraints(globalConstraints);
-        final double neighborGrow =
-            nConstraints.maxHeight - neighbor.height;
-        final double neighborShrink =
-            neighbor.height - nConstraints.minHeight;
-
-        maxAllowedPrimaryShrink =
-            math.min(maxAllowedPrimaryShrink, neighborGrow);
-        maxAllowedPrimaryGrow =
-            math.min(maxAllowedPrimaryGrow, neighborShrink);
-      }
-
-      final double effectiveDelta =
-          deltaY.clamp(-maxAllowedPrimaryGrow, maxAllowedPrimaryShrink);
-
-      updatedMap[primaryWindow.id] = primaryWindow.copyWith(
-        y: primaryWindow.y + effectiveDelta,
-        height: primaryWindow.height - effectiveDelta,
+    if (topWindows.isEmpty) {
+      final WindowConstraints primaryConstraints =
+          primaryWindow.resolveEffectiveConstraints(globalConstraints);
+      final double targetH = primaryWindow.height - deltaY;
+      final double clampedH = primaryConstraints.clampHeight(targetH);
+      final double appliedDelta = primaryWindow.height - clampedH;
+      updatedMap[primaryWindow.id] = (updatedMap[primaryWindow.id] ?? primaryWindow).copyWith(
+        y: primaryWindow.y + appliedDelta,
+        height: clampedH,
       );
+      return;
+    }
 
-      for (final WindowState neighbor in topNeighbors) {
-        updatedMap[neighbor.id] = neighbor.copyWith(
-          height: neighbor.height + effectiveDelta,
-        );
-      }
+    double maxAllowedPositive = double.infinity;
+    double maxAllowedNegative = double.infinity;
+
+    for (final WindowState top in topWindows) {
+      final WindowConstraints c =
+          top.resolveEffectiveConstraints(globalConstraints);
+      maxAllowedPositive = math.min(maxAllowedPositive, c.maxHeight - top.height);
+      maxAllowedNegative = math.min(maxAllowedNegative, top.height - c.minHeight);
+    }
+
+    for (final WindowState bottom in bottomWindows) {
+      final WindowConstraints c =
+          bottom.resolveEffectiveConstraints(globalConstraints);
+      maxAllowedPositive =
+          math.min(maxAllowedPositive, bottom.height - c.minHeight);
+      maxAllowedNegative =
+          math.min(maxAllowedNegative, c.maxHeight - bottom.height);
+    }
+
+    final double effectiveDelta =
+        deltaY.clamp(-maxAllowedNegative, maxAllowedPositive);
+
+    for (final WindowState top in topWindows) {
+      updatedMap[top.id] = top.copyWith(
+        height: top.height + effectiveDelta,
+      );
+    }
+
+    for (final WindowState bottom in bottomWindows) {
+      updatedMap[bottom.id] = bottom.copyWith(
+        y: bottom.y + effectiveDelta,
+        height: bottom.height - effectiveDelta,
+      );
     }
   }
 }
