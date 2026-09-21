@@ -7,6 +7,7 @@ import 'package:desktop_workspace/src/presentation/canvas/workspace_canvas.dart'
 import 'package:desktop_workspace/src/presentation/catalog/view_catalog_palette.dart';
 import 'package:desktop_workspace/src/presentation/dock/dock_window_chip.dart';
 import 'package:desktop_workspace/src/presentation/dock/workspace_dock.dart';
+import 'package:desktop_workspace/src/presentation/window/tab_chip.dart';
 import 'package:desktop_workspace/src/presentation/window/window_frame.dart';
 import 'package:desktop_workspace/src/state/workspace_controller.dart';
 import 'package:desktop_workspace/src/theme/workspace_theme.dart';
@@ -72,6 +73,79 @@ void main() {
       expect(find.byType(WorkspaceDock), findsOneWidget);
       expect(find.byType(WindowFrame), findsNWidgets(2));
       expect(find.byType(DockWindowChip), findsNWidgets(2));
+    });
+
+    testWidgets(
+        'Отображение заголовка на активном чипе и закрытие по кнопке-крестику',
+        (WidgetTester tester) async {
+      tester.view.physicalSize = const Size(1280.0, 800.0);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+
+      late WidgetRef capturedRef;
+
+      await tester.pumpWidget(
+        ProviderScope(
+          child: WorkspaceTheme(
+            data: const WorkspaceThemeData.dark(),
+            child: MaterialApp(
+              home: Consumer(
+                builder: (BuildContext context, WidgetRef ref, _) {
+                  capturedRef = ref;
+                  return const WorkspaceCanvas(
+                    views: <ViewDefinition>[],
+                  );
+                },
+              ),
+            ),
+          ),
+        ),
+      );
+
+      final WorkspaceController controller =
+          capturedRef.read(workspaceControllerProvider.notifier);
+      controller.updateViewportSize(1280.0, 800.0);
+      controller.applyPresetSolo(
+        <WorkspaceTab>[
+          const WorkspaceTab(
+            id: 'tab_active_test',
+            typeId: 'type_test',
+            title: 'Интерактивная панель',
+          ),
+          const WorkspaceTab(
+            id: 'tab_inactive_test',
+            typeId: 'type_test_2',
+            title: 'Второй экран',
+          ),
+        ],
+      );
+
+      await tester.pump();
+      await tester.pump();
+
+      // Заголовок активного таба отображается внутри чипа вкладки
+      final Finder activeTabTitleFinder = find.descendant(
+        of: find.byType(TabChip).first,
+        matching: find.text('Интерактивная панель'),
+      );
+      expect(activeTabTitleFinder, findsOneWidget);
+
+      // Закрытие вкладки по кнопке-крестику на активном чипе
+      final Finder closeBtnFinder = find.descendant(
+        of: find.byType(TabChip).first,
+        matching: find.byIcon(Icons.close_rounded),
+      );
+      expect(closeBtnFinder, findsOneWidget);
+
+      await tester.tap(closeBtnFinder);
+      await tester.pump();
+      await tester.pump();
+
+      // Вкладка закрылась, активировалась оставшаяся
+      final WindowState win =
+          capturedRef.read(workspaceControllerProvider).windows.first;
+      expect(win.tabs.length, 1);
+      expect(win.tabs.first.id, 'tab_inactive_test');
     });
 
     testWidgets('Сворачивание и восстановление окна через док-панель',
@@ -276,7 +350,7 @@ void main() {
       await tester.tap(find.text('Открыть каталог'));
       await tester.pumpAndSettle();
 
-      expect(find.text('Каталог представлений'), findsOneWidget);
+      expect(find.text('Панели и компоненты'), findsOneWidget);
       expect(find.text('Тестовый компонент'), findsOneWidget);
     });
   });

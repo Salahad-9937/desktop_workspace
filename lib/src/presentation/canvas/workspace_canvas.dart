@@ -134,7 +134,7 @@ class WorkspaceCanvas extends ConsumerWidget {
                               windowId: state.soloWindow!.id,
                               tabId: tId,
                             ),
-                            onTabDropped: (_) {},
+                            onTabDropped: (_, __) {},
                             onTogglePin: () {},
                             onTileSelect: (_) {},
                             onMinimize: () =>
@@ -191,10 +191,11 @@ class WorkspaceCanvas extends ConsumerWidget {
                                 windowId: win.id,
                                 tabId: tId,
                               ),
-                              onTabDropped: (TabDragPayload p) =>
+                              onTabDropped: (TabDragPayload p, int? dropIndex) =>
                                   controller.dropTabOnWindow(
                                 payload: p,
                                 targetWindowId: win.id,
+                                insertIndex: dropIndex,
                               ),
                               onTogglePin: () =>
                                   controller.togglePinWindow(win.id),
@@ -253,10 +254,11 @@ class WorkspaceCanvas extends ConsumerWidget {
                                 windowId: win.id,
                                 tabId: tId,
                               ),
-                              onTabDropped: (TabDragPayload p) =>
+                              onTabDropped: (TabDragPayload p, int? dropIndex) =>
                                   controller.dropTabOnWindow(
                                 payload: p,
                                 targetWindowId: win.id,
+                                insertIndex: dropIndex,
                               ),
                               onTogglePin: () =>
                                   controller.togglePinWindow(win.id),
@@ -285,8 +287,8 @@ class WorkspaceCanvas extends ConsumerWidget {
                   leading: dockLeading,
                   trailing: dockTrailing,
                   onWindowTap: (String wId) {
-                    final WindowState target =
-                        state.windows.firstWhere((WindowState w) => w.id == wId);
+                    final WindowState target = state.windows
+                        .firstWhere((WindowState w) => w.id == wId);
                     if (target.isMinimized) {
                       controller.restoreWindow(wId);
                     } else if (state.focusedWindowId == wId) {

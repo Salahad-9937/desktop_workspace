@@ -1,4 +1,5 @@
 import 'package:desktop_workspace/src/model/geometry_types.dart';
+import 'package:desktop_workspace/src/model/tab_drag_payload.dart';
 import 'package:desktop_workspace/src/model/view_definition.dart';
 import 'package:desktop_workspace/src/model/window_state.dart';
 import 'package:desktop_workspace/src/model/workspace_tab.dart';
@@ -68,7 +69,10 @@ void main() {
       );
 
       WorkspaceState state = container.read(workspaceControllerProvider);
-      expect(state.dockOrder, <String>['win_split_primary', 'win_split_secondary']);
+      expect(
+        state.dockOrder,
+        <String>['win_split_primary', 'win_split_secondary'],
+      );
 
       // Меняем фокус на второе окно
       controller.focusWindow('win_split_secondary');
@@ -77,7 +81,10 @@ void main() {
       // Порядок рендеринга Z-Index изменился
       expect(state.windows.last.id, 'win_split_secondary');
       // Но порядок чипов в доке остался абсолютно стабильным!
-      expect(state.dockOrder, <String>['win_split_primary', 'win_split_secondary']);
+      expect(
+        state.dockOrder,
+        <String>['win_split_primary', 'win_split_secondary'],
+      );
     });
 
     test('openView создает новое окно на холсте без удаления существующих', () {
@@ -132,7 +139,8 @@ void main() {
       expect(state.windows.last.id, 'win_split_primary');
     });
 
-    test('tileWindow и untileWindow корректно сохраняют и восстанавливают геометрию',
+    test(
+        'tileWindow и untileWindow корректно сохраняют и восстанавливают геометрию',
         () {
       final WorkspaceController controller =
           container.read(workspaceControllerProvider.notifier);
@@ -152,8 +160,8 @@ void main() {
       controller.tileWindow('win_split_primary', SnapZone.maximize);
 
       WorkspaceState state = container.read(workspaceControllerProvider);
-      final WindowState maximized =
-          state.windows.firstWhere((WindowState w) => w.id == 'win_split_primary');
+      final WindowState maximized = state.windows
+          .firstWhere((WindowState w) => w.id == 'win_split_primary');
 
       expect(maximized.snapZone, SnapZone.maximize);
       expect(maximized.isMaximized, isTrue);
@@ -163,8 +171,8 @@ void main() {
       controller.untileWindow('win_split_primary');
 
       state = container.read(workspaceControllerProvider);
-      final WindowState untiled =
-          state.windows.firstWhere((WindowState w) => w.id == 'win_split_primary');
+      final WindowState untiled = state.windows
+          .firstWhere((WindowState w) => w.id == 'win_split_primary');
 
       expect(untiled.snapZone, SnapZone.none);
       expect(untiled.isMaximized, isFalse);
@@ -197,10 +205,10 @@ void main() {
       );
 
       final WorkspaceState state = container.read(workspaceControllerProvider);
-      final WindowState primary =
-          state.windows.firstWhere((WindowState w) => w.id == 'win_split_primary');
-      final WindowState secondary =
-          state.windows.firstWhere((WindowState w) => w.id == 'win_split_secondary');
+      final WindowState primary = state.windows
+          .firstWhere((WindowState w) => w.id == 'win_split_primary');
+      final WindowState secondary = state.windows
+          .firstWhere((WindowState w) => w.id == 'win_split_secondary');
 
       expect(primary.width, 540.0);
       expect(secondary.width, 460.0);
@@ -262,6 +270,101 @@ void main() {
         isFalse,
       );
       expect(state.windows.length, 1);
+    });
+
+    test('Локальное переупорядочивание вкладок внутри одного окна', () {
+      final WorkspaceController controller =
+          container.read(workspaceControllerProvider.notifier);
+      controller.updateViewportSize(1000.0, 800.0);
+
+      controller.applyPresetSolo(<WorkspaceTab>[
+        const WorkspaceTab(id: 'tab_a', typeId: 'type_a', title: 'Таб A'),
+        const WorkspaceTab(id: 'tab_b', typeId: 'type_b', title: 'Таб B'),
+        const WorkspaceTab(id: 'tab_c', typeId: 'type_c', title: 'Таб C'),
+      ]);
+
+      const String windowId = 'win_solo_fullscreen';
+
+      // Переносим Таб A (индекс 0) в слот после Таба B (слот 2)
+      controller.dropTabOnWindow(
+        payload: const TabDragPayload(
+          tab: WorkspaceTab(id: 'tab_a', typeId: 'type_a', title: 'Таб A'),
+          sourceWindowId: windowId,
+          sourceTabIndex: 0,
+          isSingleTab: false,
+        ),
+        targetWindowId: windowId,
+        insertIndex: 2,
+      );
+
+      final WorkspaceState state = container.read(workspaceControllerProvider);
+      final WindowState win =
+          state.windows.firstWhere((WindowState w) => w.id == windowId);
+
+      expect(win.tabs.map((WorkspaceTab t) => t.id).toList(), <String>[
+        'tab_b',
+        'tab_a',
+        'tab_c',
+      ]);
+    });
+
+    test('Межоконное поглощение вкладки с точным insertIndex', () {
+      final WorkspaceController controller =
+          container.read(workspaceControllerProvider.notifier);
+      controller.updateViewportSize(1000.0, 800.0);
+
+      controller.applyPresetSplit(
+        windowsTabs: <List<WorkspaceTab>>[
+          <WorkspaceTab>[
+            const WorkspaceTab(
+              id: 'tab_target_1',
+              typeId: 'type_1',
+              title: 'Цель 1',
+            ),
+            const WorkspaceTab(
+              id: 'tab_target_2',
+              typeId: 'type_2',
+              title: 'Цель 2',
+            ),
+          ],
+          <WorkspaceTab>[
+            const WorkspaceTab(
+              id: 'tab_source_1',
+              typeId: 'type_src',
+              title: 'Источник',
+            ),
+          ],
+        ],
+      );
+
+      // Переносим вкладку 'tab_source_1' в окно 'win_split_primary' в индекс 1 (между 'tab_target_1' и 'tab_target_2')
+      controller.dropTabOnWindow(
+        payload: const TabDragPayload(
+          tab: WorkspaceTab(
+            id: 'tab_source_1',
+            typeId: 'type_src',
+            title: 'Источник',
+          ),
+          sourceWindowId: 'win_split_secondary',
+          sourceTabIndex: 0,
+          isSingleTab: true,
+        ),
+        targetWindowId: 'win_split_primary',
+        insertIndex: 1,
+      );
+
+      final WorkspaceState state = container.read(workspaceControllerProvider);
+      final WindowState targetWin = state.windows
+          .firstWhere((WindowState w) => w.id == 'win_split_primary');
+
+      expect(targetWin.tabs.length, 3);
+      expect(targetWin.tabs[1].id, 'tab_source_1');
+      expect(targetWin.activeTabIndex, 1);
+      // Окно-источник опустело и каскадно закрылось
+      expect(
+        state.windows.any((WindowState w) => w.id == 'win_split_secondary'),
+        isFalse,
+      );
     });
 
     test('Дебаунсированное автосохранение снимка в SessionStorage', () async {

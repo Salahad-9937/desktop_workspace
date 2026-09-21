@@ -6,7 +6,7 @@ import '../model/workspace_tab.dart';
 import 'window_hierarchy_ops.dart';
 import 'workspace_state.dart';
 
-/// Обработчик жизненного цикла вкладок и механизма Drag-and-Drop (Tear-off / Merging).
+/// Обработчик жизненного цикла вкладок и механизма Drag-and-Drop (Tear-off / Merging / Reordering).
 class TabLifecycleOps {
   const TabLifecycleOps._();
 
@@ -128,17 +128,67 @@ class TabLifecycleOps {
     return state.copyWith(windows: updated);
   }
 
-  /// Поглощает перенесенную вкладку в целевой оконный контейнер (Tab Merging).
+  /// Поглощает перенесенную вкладку в целевой оконный контейнер (Tab Merging) или сортирует вкладки внутри одного окна.
   static WorkspaceState dropTabOnWindow({
     required WorkspaceState state,
     required TabDragPayload payload,
     required String targetWindowId,
     int? insertIndex,
   }) {
+    // 1. Внутриоконное переупорядочивание (Reordering)
     if (payload.sourceWindowId == targetWindowId) {
-      return state.copyWith(clearDraggingTab: true);
+      final int targetIdx = state.windows.indexWhere(
+        (WindowState w) => w.id == targetWindowId,
+      );
+      if (targetIdx == -1) {
+        return state.copyWith(clearDraggingTab: true);
+      }
+
+      final WindowState currentWin = state.windows[targetIdx];
+      final int fromIndex = payload.sourceTabIndex;
+      if (fromIndex < 0 || fromIndex >= currentWin.tabs.length) {
+        return state.copyWith(clearDraggingTab: true);
+      }
+
+      final int rawSlot = insertIndex ?? currentWin.tabs.length;
+      final int clampedSlot = rawSlot.clamp(0, currentWin.tabs.length);
+
+      final int effectiveToIndex;
+      if (clampedSlot > fromIndex) {
+        effectiveToIndex = clampedSlot - 1;
+      } else {
+        effectiveToIndex = clampedSlot;
+      }
+
+      if (fromIndex == effectiveToIndex) {
+        return state.copyWith(clearDraggingTab: true);
+      }
+
+      final String? previouslyActiveId = currentWin.activeTab?.id;
+
+      final List<WorkspaceTab> newTabs = List<WorkspaceTab>.of(currentWin.tabs);
+      final WorkspaceTab movedTab = newTabs.removeAt(fromIndex);
+      newTabs.insert(effectiveToIndex, movedTab);
+
+      final int newActiveIndex = previouslyActiveId != null
+          ? newTabs.indexWhere((WorkspaceTab t) => t.id == previouslyActiveId)
+          : 0;
+
+      final List<WindowState> updated = List<WindowState>.of(state.windows);
+      updated[targetIdx] = currentWin.copyWith(
+        tabs: newTabs,
+        activeTabIndex:
+            newActiveIndex != -1 ? newActiveIndex : effectiveToIndex,
+      );
+
+      return state.copyWith(
+        windows: updated,
+        focusedWindowId: targetWindowId,
+        clearDraggingTab: true,
+      );
     }
 
+    // 2. Межоконное поглощение вкладки (Tab Merging)
     final WorkspaceState afterClose = closeTab(
       state,
       payload.sourceWindowId,

@@ -49,8 +49,8 @@ class WindowFrame extends StatelessWidget {
   /// Дублирование вкладки.
   final void Function(String tabId) onDuplicateTab;
 
-  /// Слияние вкладки.
-  final void Function(TabDragPayload payload) onTabDropped;
+  /// Слияние или переупорядочивание вкладки с опциональным целевым слотом.
+  final void Function(TabDragPayload payload, int? dropIndex) onTabDropped;
 
   /// Закрепление окна поверх всех.
   final VoidCallback onTogglePin;

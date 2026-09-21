@@ -6,8 +6,8 @@ import '../../model/workspace_tab.dart';
 import '../../theme/workspace_theme.dart';
 import '../../theme/workspace_theme_data.dart';
 
-/// Компактный интерактивный чип вкладки в заголовке окна с отображением пиктограммы.
-class TabChip extends StatelessWidget {
+/// Интерактивный гибридный чип вкладки с заголовком, кнопкой закрытия и поддержкой сортировки.
+class TabChip extends StatefulWidget {
   /// Метаданные вкладки.
   final WorkspaceTab tab;
 
@@ -32,6 +32,9 @@ class TabChip extends StatelessWidget {
   /// Обратный вызов дублирования вкладки.
   final VoidCallback onDuplicate;
 
+  /// Обратный вызов сброса перетаскиваемой вкладки в позицию целевого слота.
+  final void Function(TabDragPayload payload, int targetIndex)? onTabDrop;
+
   /// Создает экземпляр [TabChip].
   const TabChip({
     super.key,
@@ -43,38 +46,77 @@ class TabChip extends StatelessWidget {
     required this.onSelect,
     required this.onClose,
     required this.onDuplicate,
+    this.onTabDrop,
   });
+
+  @override
+  State<TabChip> createState() => _TabChipState();
+}
+
+class _TabChipState extends State<TabChip> {
+  bool _isHovered = false;
+  bool _isDropHovered = false;
+  bool _dropOnLeft = true;
+  TabDragPayload? _activePayload;
+
+  bool _isValidDrop(TabDragPayload payload) {
+    if (payload.sourceWindowId == widget.windowId) {
+      if (payload.sourceTabIndex == widget.tabIndex) {
+        return false;
+      }
+      if (_dropOnLeft && payload.sourceTabIndex == widget.tabIndex - 1) {
+        return false;
+      }
+      if (!_dropOnLeft && payload.sourceTabIndex == widget.tabIndex + 1) {
+        return false;
+      }
+    }
+    return true;
+  }
 
   @override
   Widget build(BuildContext context) {
     final WorkspaceThemeData theme = WorkspaceTheme.of(context);
-    final Color effectiveAccent = tab.accentColor ?? theme.accentColor;
+    final Color effectiveAccent = widget.tab.accentColor ?? theme.accentColor;
 
     final TabDragPayload payload = TabDragPayload(
-      tab: tab,
-      sourceWindowId: windowId,
-      sourceTabIndex: tabIndex,
-      isSingleTab: isSingleTab,
+      tab: widget.tab,
+      sourceWindowId: widget.windowId,
+      sourceTabIndex: widget.tabIndex,
+      isSingleTab: widget.isSingleTab,
     );
+
+    final bool isExpanded = widget.isActive || _isHovered;
 
     final Widget chipBody = ClipRRect(
       borderRadius: BorderRadius.only(
         topLeft: Radius.circular(theme.windowRadius / 1.5),
         topRight: Radius.circular(theme.windowRadius / 1.5),
       ),
-      child: Container(
-        width: 36.0,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 140),
+        curve: Curves.easeOutCubic,
+        constraints: BoxConstraints(
+          minWidth: widget.isActive ? 48.0 : (_isHovered ? 48.0 : 36.0),
+          maxWidth: isExpanded ? 140.0 : 36.0,
+        ),
         height: 28.0,
         decoration: BoxDecoration(
-          color: isActive
+          color: widget.isActive
               ? theme.windowBackground
-              : theme.titlebarInactive.withValues(alpha: 0.6),
+              : (_isHovered
+                  ? theme.titlebarActive.withValues(alpha: 0.7)
+                  : theme.titlebarInactive.withValues(alpha: 0.6)),
           borderRadius: BorderRadius.only(
             topLeft: Radius.circular(theme.windowRadius / 1.5),
             topRight: Radius.circular(theme.windowRadius / 1.5),
           ),
           border: Border.all(
-            color: isActive ? theme.borderActive : theme.borderInactive,
+            color: widget.isActive
+                ? theme.borderActive
+                : (_isHovered
+                    ? theme.borderActive.withValues(alpha: 0.5)
+                    : theme.borderInactive),
             width: 0.5,
           ),
         ),
@@ -82,14 +124,59 @@ class TabChip extends StatelessWidget {
           children: <Widget>[
             Container(
               height: 2.0,
-              color: isActive ? effectiveAccent : Colors.transparent,
+              color: widget.isActive ? effectiveAccent : Colors.transparent,
             ),
             Expanded(
-              child: Center(
-                child: Icon(
-                  tab.icon ?? Icons.web_asset_rounded,
-                  size: 15.0,
-                  color: isActive ? effectiveAccent : theme.textMuted,
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                physics: const NeverScrollableScrollPhysics(),
+                child: Container(
+                  height: 25.0,
+                  padding: EdgeInsets.symmetric(
+                    horizontal: isExpanded ? 6.0 : 10.0,
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: <Widget>[
+                      Icon(
+                        widget.tab.icon ?? Icons.web_asset_rounded,
+                        size: 14.0,
+                        color: widget.isActive
+                            ? effectiveAccent
+                            : (_isHovered
+                                ? theme.textPrimary
+                                : theme.textMuted),
+                      ),
+                      if (isExpanded) ...<Widget>[
+                        const SizedBox(width: 5.0),
+                        ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 80.0),
+                          child: Text(
+                            widget.tab.title,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 11.0,
+                              fontWeight: widget.isActive
+                                  ? FontWeight.w600
+                                  : FontWeight.w400,
+                              color: widget.isActive
+                                  ? theme.textPrimary
+                                  : theme.textMuted,
+                              decoration: TextDecoration.none,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 4.0),
+                        _TabCloseButton(
+                          onClose: widget.onClose,
+                          normalColor: theme.textMuted,
+                          hoverColor: theme.actionCloseHover,
+                        ),
+                      ],
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -98,53 +185,162 @@ class TabChip extends StatelessWidget {
       ),
     );
 
-    return Tooltip(
-      message: tab.title,
-      waitDuration: const Duration(milliseconds: 300),
-      child: GestureDetector(
-        onTap: onSelect,
-        onSecondaryTapUp: (TapUpDetails details) {
-          _showContextMenu(context, details.globalPosition);
-        },
-        child: Draggable<TabDragPayload>(
-          data: payload,
-          feedback: Material(
-            elevation: 6.0,
-            borderRadius: BorderRadius.circular(theme.windowRadius),
-            color: theme.windowBackground.withValues(alpha: 0.9),
-            child: Container(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 10.0,
-                vertical: 6.0,
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: <Widget>[
-                  Icon(
-                    tab.icon ?? Icons.web_asset_rounded,
-                    size: 14.0,
-                    color: effectiveAccent,
-                  ),
-                  const SizedBox(width: 6.0),
-                  Text(
-                    tab.title,
-                    style: TextStyle(
-                      fontSize: 12.0,
-                      color: theme.textPrimary,
-                      decoration: TextDecoration.none,
+    final bool showLeftIndicator = _isDropHovered &&
+        _activePayload != null &&
+        _isValidDrop(_activePayload!) &&
+        _dropOnLeft;
+
+    final bool showRightIndicator = _isDropHovered &&
+        _activePayload != null &&
+        _isValidDrop(_activePayload!) &&
+        !_dropOnLeft;
+
+    return DragTarget<TabDragPayload>(
+      onWillAcceptWithDetails: (DragTargetDetails<TabDragPayload> details) {
+        return true;
+      },
+      onMove: (DragTargetDetails<TabDragPayload> details) {
+        final RenderBox? box = context.findRenderObject() as RenderBox?;
+        if (box != null) {
+          final Offset localPos = box.globalToLocal(details.offset);
+          final bool isLeft = localPos.dx < (box.size.width / 2.0);
+          if (_dropOnLeft != isLeft ||
+              !_isDropHovered ||
+              _activePayload != details.data) {
+            setState(() {
+              _isDropHovered = true;
+              _dropOnLeft = isLeft;
+              _activePayload = details.data;
+            });
+          }
+        }
+      },
+      onLeave: (_) {
+        if (_isDropHovered) {
+          setState(() {
+            _isDropHovered = false;
+            _activePayload = null;
+          });
+        }
+      },
+      onAcceptWithDetails: (DragTargetDetails<TabDragPayload> details) {
+        final int targetSlot =
+            _dropOnLeft ? widget.tabIndex : widget.tabIndex + 1;
+        setState(() {
+          _isDropHovered = false;
+          _activePayload = null;
+        });
+        widget.onTabDrop?.call(details.data, targetSlot);
+      },
+      builder: (
+        BuildContext context,
+        List<TabDragPayload?> candidateData,
+        List<dynamic> rejectedData,
+      ) {
+        return Stack(
+          clipBehavior: Clip.none,
+          children: <Widget>[
+            Tooltip(
+              message: widget.tab.title,
+              waitDuration: const Duration(milliseconds: 400),
+              child: MouseRegion(
+                onEnter: (_) => setState(() => _isHovered = true),
+                onExit: (_) => setState(() => _isHovered = false),
+                child: GestureDetector(
+                  onTap: widget.onSelect,
+                  onSecondaryTapUp: (TapUpDetails details) {
+                    _showContextMenu(context, details.globalPosition);
+                  },
+                  child: Draggable<TabDragPayload>(
+                    data: payload,
+                    feedback: Material(
+                      elevation: 8.0,
+                      borderRadius:
+                          BorderRadius.circular(theme.windowRadius / 1.5),
+                      color: theme.windowBackground.withValues(alpha: 0.95),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10.0,
+                          vertical: 6.0,
+                        ),
+                        decoration: BoxDecoration(
+                          borderRadius:
+                              BorderRadius.circular(theme.windowRadius / 1.5),
+                          border:
+                              Border.all(color: effectiveAccent, width: 1.0),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: <Widget>[
+                            Icon(
+                              widget.tab.icon ?? Icons.web_asset_rounded,
+                              size: 14.0,
+                              color: effectiveAccent,
+                            ),
+                            const SizedBox(width: 6.0),
+                            Text(
+                              widget.tab.title,
+                              style: TextStyle(
+                                fontSize: 12.0,
+                                fontWeight: FontWeight.w600,
+                                color: theme.textPrimary,
+                                decoration: TextDecoration.none,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                     ),
+                    childWhenDragging: Opacity(
+                      opacity: 0.25,
+                      child: chipBody,
+                    ),
+                    child: chipBody,
                   ),
-                ],
+                ),
               ),
             ),
-          ),
-          childWhenDragging: Opacity(
-            opacity: 0.3,
-            child: chipBody,
-          ),
-          child: chipBody,
-        ),
-      ),
+            if (showLeftIndicator)
+              Positioned(
+                left: -1.5,
+                top: 2.0,
+                bottom: 2.0,
+                width: 3.0,
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: theme.accentColor,
+                    borderRadius: BorderRadius.circular(1.5),
+                    boxShadow: <BoxShadow>[
+                      BoxShadow(
+                        color: theme.accentColor.withValues(alpha: 0.8),
+                        blurRadius: 4.0,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            if (showRightIndicator)
+              Positioned(
+                right: -1.5,
+                top: 2.0,
+                bottom: 2.0,
+                width: 3.0,
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: theme.accentColor,
+                    borderRadius: BorderRadius.circular(1.5),
+                    boxShadow: <BoxShadow>[
+                      BoxShadow(
+                        color: theme.accentColor.withValues(alpha: 0.8),
+                        blurRadius: 4.0,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+          ],
+        );
+      },
     );
   }
 
@@ -182,11 +378,59 @@ class TabChip extends StatelessWidget {
         ],
       ).then((String? value) {
         if (value == 'duplicate') {
-          onDuplicate();
+          widget.onDuplicate();
         } else if (value == 'close') {
-          onClose();
+          widget.onClose();
         }
       }),
+    );
+  }
+}
+
+class _TabCloseButton extends StatefulWidget {
+  final VoidCallback onClose;
+  final Color normalColor;
+  final Color hoverColor;
+
+  const _TabCloseButton({
+    required this.onClose,
+    required this.normalColor,
+    required this.hoverColor,
+  });
+
+  @override
+  State<_TabCloseButton> createState() => _TabCloseButtonState();
+}
+
+class _TabCloseButtonState extends State<_TabCloseButton> {
+  bool _isHovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      onEnter: (_) => setState(() => _isHovered = true),
+      onExit: (_) => setState(() => _isHovered = false),
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: widget.onClose,
+        child: Container(
+          width: 16.0,
+          height: 16.0,
+          decoration: BoxDecoration(
+            color: _isHovered
+                ? widget.hoverColor.withValues(alpha: 0.2)
+                : Colors.transparent,
+            borderRadius: BorderRadius.circular(3.0),
+          ),
+          child: Center(
+            child: Icon(
+              Icons.close_rounded,
+              size: 11.0,
+              color: _isHovered ? widget.hoverColor : widget.normalColor,
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

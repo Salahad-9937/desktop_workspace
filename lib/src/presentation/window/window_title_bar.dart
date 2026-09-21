@@ -33,8 +33,8 @@ class WindowTitleBar extends StatelessWidget {
   /// Дублирование вкладки.
   final void Function(String tabId) onDuplicateTab;
 
-  /// Прием перетаскиваемой вкладки из другого окна.
-  final void Function(TabDragPayload payload) onTabDropped;
+  /// Прием перетаскиваемой вкладки с целевой позицией слота вставки.
+  final void Function(TabDragPayload payload, int? dropIndex) onTabDropped;
 
   /// Переключение постоянного закрепления (Always on Top).
   final VoidCallback onTogglePin;
@@ -73,137 +73,137 @@ class WindowTitleBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final WorkspaceThemeData theme = WorkspaceTheme.of(context);
-    final String activeTitle = window.activeTab?.title ?? '';
 
-    return DragTarget<TabDragPayload>(
-      onWillAcceptWithDetails: (DragTargetDetails<TabDragPayload> details) {
-        return details.data.sourceWindowId != window.id;
-      },
-      onAcceptWithDetails: (DragTargetDetails<TabDragPayload> details) {
-        onTabDropped(details.data);
-      },
-      builder: (
-        BuildContext context,
-        List<TabDragPayload?> candidateData,
-        List<dynamic> rejectedData,
-      ) {
-        final bool isTargetHovered = candidateData.isNotEmpty;
-
-        return Container(
-          width: double.infinity,
-          height: theme.titlebarHeight,
-          decoration: BoxDecoration(
-            color: isTargetHovered
-                ? theme.previewOverlay
-                : (isFocused ? theme.titlebarActive : theme.titlebarInactive),
-            border: Border(
-              bottom: BorderSide(
-                color: isFocused ? theme.borderActive : theme.borderInactive,
-                width: 1.0,
-              ),
-            ),
+    return Container(
+      width: double.infinity,
+      height: theme.titlebarHeight,
+      decoration: BoxDecoration(
+        color: isFocused ? theme.titlebarActive : theme.titlebarInactive,
+        border: Border(
+          bottom: BorderSide(
+            color: isFocused ? theme.borderActive : theme.borderInactive,
+            width: 1.0,
           ),
-          child: Row(
-            children: <Widget>[
-              // Лента компактных пиктограмм вкладок
-              Padding(
-                padding: const EdgeInsets.only(left: 4.0, top: 4.0),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: <Widget>[
-                    for (int i = 0; i < window.tabs.length; i++)
-                      Padding(
-                        padding: const EdgeInsets.only(right: 3.0),
-                        child: TabChip(
-                          tab: window.tabs[i],
-                          isActive: i == window.activeTabIndex,
-                          windowId: window.id,
-                          tabIndex: i,
-                          isSingleTab: window.tabs.length == 1,
-                          onSelect: () => onSelectTab(i),
-                          onClose: () => onCloseTab(window.tabs[i].id),
-                          onDuplicate: () => onDuplicateTab(window.tabs[i].id),
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 6.0),
-              // Область перетаскивания окна с центрированным заголовком активной вкладки
-              Expanded(
-                child: GestureDetector(
-                  behavior: HitTestBehavior.translucent,
-                  onDoubleTap: onToggleMaximize,
-                  onPanUpdate: (DragUpdateDetails details) {
-                    onMove(
-                      details.delta.dx,
-                      details.delta.dy,
-                      details.globalPosition,
-                    );
-                  },
-                  onPanEnd: (_) => onMoveEnd(),
-                  child: Center(
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 8.0),
-                      child: Text(
-                        activeTitle,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontSize: 12.0,
-                          fontWeight:
-                              isFocused ? FontWeight.w600 : FontWeight.w400,
-                          color: isFocused
-                              ? theme.textPrimary
-                              : theme.textMuted,
-                        ),
-                      ),
+        ),
+      ),
+      child: Row(
+        children: <Widget>[
+          // Лента чипов вкладок с поддержкой Reordering и Drop индикации
+          Padding(
+            padding: const EdgeInsets.only(left: 4.0, top: 4.0),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                for (int i = 0; i < window.tabs.length; i++)
+                  Padding(
+                    padding: const EdgeInsets.only(right: 3.0),
+                    child: TabChip(
+                      key: ValueKey<String>(window.tabs[i].id),
+                      tab: window.tabs[i],
+                      isActive: i == window.activeTabIndex,
+                      windowId: window.id,
+                      tabIndex: i,
+                      isSingleTab: window.tabs.length == 1,
+                      onSelect: () => onSelectTab(i),
+                      onClose: () => onCloseTab(window.tabs[i].id),
+                      onDuplicate: () => onDuplicateTab(window.tabs[i].id),
+                      onTabDrop: onTabDropped,
                     ),
                   ),
-                ),
-              ),
-              // Слот прикладных действий хоста
-              if (trailingActions != null) trailingActions!,
-              // Блок системных кнопок окна
-              _HeaderIconButton(
-                icon: Icons.push_pin_rounded,
-                tooltip: window.isPinnedOnTop
-                    ? 'Открепить поверх всех'
-                    : 'Закрепить поверх всех',
-                iconColor:
-                    window.isPinnedOnTop ? theme.statusPinned : theme.textMuted,
-                onPressed: onTogglePin,
-              ),
-              _TileMenuButton(
-                onTileSelect: onTileSelect,
-                iconColor: theme.textMuted,
-              ),
-              _HeaderIconButton(
-                icon: Icons.horizontal_rule_rounded,
-                tooltip: 'Свернуть',
-                iconColor: theme.textMuted,
-                onPressed: onMinimize,
-              ),
-              _HeaderIconButton(
-                icon: window.isMaximized
-                    ? Icons.filter_none_rounded
-                    : Icons.crop_square_rounded,
-                tooltip: window.isMaximized ? 'Восстановить' : 'Развернуть',
-                iconColor: theme.textMuted,
-                onPressed: onToggleMaximize,
-              ),
-              _HeaderIconButton(
-                icon: Icons.close_rounded,
-                tooltip: 'Закрыть',
-                iconColor: theme.textMuted,
-                hoverColor: theme.actionCloseHover,
-                onPressed: onCloseWindow,
-              ),
-            ],
+              ],
+            ),
           ),
-        );
-      },
+          const SizedBox(width: 4.0),
+          // Свободная область перемещения окна с поддержкой сброса таба в конец стека
+          Expanded(
+            child: DragTarget<TabDragPayload>(
+              onWillAcceptWithDetails:
+                  (DragTargetDetails<TabDragPayload> details) {
+                if (details.data.sourceWindowId == window.id) {
+                  return details.data.sourceTabIndex != window.tabs.length - 1;
+                }
+                return true;
+              },
+              onAcceptWithDetails: (DragTargetDetails<TabDragPayload> details) {
+                onTabDropped(details.data, window.tabs.length);
+              },
+              builder: (
+                BuildContext context,
+                List<TabDragPayload?> candidateData,
+                List<dynamic> rejectedData,
+              ) {
+                final bool isHovered = candidateData.isNotEmpty;
+
+                return Container(
+                  decoration: BoxDecoration(
+                    color: isHovered
+                        ? theme.previewOverlay.withValues(alpha: 0.15)
+                        : Colors.transparent,
+                    border: isHovered
+                        ? Border(
+                            left: BorderSide(
+                              color: theme.accentColor,
+                              width: 2.0,
+                            ),
+                          )
+                        : null,
+                  ),
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.translucent,
+                    onDoubleTap: onToggleMaximize,
+                    onPanUpdate: (DragUpdateDetails details) {
+                      onMove(
+                        details.delta.dx,
+                        details.delta.dy,
+                        details.globalPosition,
+                      );
+                    },
+                    onPanEnd: (_) => onMoveEnd(),
+                    child: const SizedBox.expand(),
+                  ),
+                );
+              },
+            ),
+          ),
+          // Слот прикладных действий хоста
+          if (trailingActions != null) trailingActions!,
+          // Блок системных кнопок окна
+          _HeaderIconButton(
+            icon: Icons.push_pin_rounded,
+            tooltip: window.isPinnedOnTop
+                ? 'Открепить поверх всех'
+                : 'Закрепить поверх всех',
+            iconColor:
+                window.isPinnedOnTop ? theme.statusPinned : theme.textMuted,
+            onPressed: onTogglePin,
+          ),
+          _TileMenuButton(
+            onTileSelect: onTileSelect,
+            iconColor: theme.textMuted,
+          ),
+          _HeaderIconButton(
+            icon: Icons.horizontal_rule_rounded,
+            tooltip: 'Свернуть',
+            iconColor: theme.textMuted,
+            onPressed: onMinimize,
+          ),
+          _HeaderIconButton(
+            icon: window.isMaximized
+                ? Icons.filter_none_rounded
+                : Icons.crop_square_rounded,
+            tooltip: window.isMaximized ? 'Восстановить' : 'Развернуть',
+            iconColor: theme.textMuted,
+            onPressed: onToggleMaximize,
+          ),
+          _HeaderIconButton(
+            icon: Icons.close_rounded,
+            tooltip: 'Закрыть',
+            iconColor: theme.textMuted,
+            hoverColor: theme.actionCloseHover,
+            onPressed: onCloseWindow,
+          ),
+        ],
+      ),
     );
   }
 }
