@@ -6,6 +6,7 @@ import '../engine/layout_generator.dart';
 import '../model/geometry_types.dart';
 import '../model/tab_drag_payload.dart';
 import '../model/view_definition.dart';
+import '../model/window_state.dart';
 import '../model/workspace_profile.dart';
 import '../model/workspace_tab.dart';
 import 'persistence/session_storage.dart';
@@ -127,6 +128,7 @@ class WorkspaceController extends _$WorkspaceController {
     required double deltaX,
     required double deltaY,
     bool enableSeamResizing = true,
+    bool enableSnapping = true,
   }) {
     state = WindowGeometryOps.resizeWindow(
       state: state,
@@ -135,7 +137,14 @@ class WorkspaceController extends _$WorkspaceController {
       deltaX: deltaX,
       deltaY: deltaY,
       enableSeamResizing: enableSeamResizing,
+      enableSnapping: enableSnapping,
     );
+    _scheduleAutosave();
+  }
+
+  /// Завершает интерактивную фазу изменения размеров окна.
+  void commitResize() {
+    state = WindowGeometryOps.commitResize(state);
     _scheduleAutosave();
   }
 
@@ -301,7 +310,9 @@ class WorkspaceController extends _$WorkspaceController {
       windows: snapshot.windows,
       focusedWindowId: snapshot.focusedWindowId,
       soloWindowId: snapshot.soloWindowId,
-      dockOrder: snapshot.windows.map((w) => w.id).toList(),
+      dockOrder: snapshot.windows
+          .map<String>((WindowState w) => w.id)
+          .toList(growable: false),
     );
   }
 

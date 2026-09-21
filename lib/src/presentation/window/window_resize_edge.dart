@@ -9,10 +9,13 @@ typedef OnResizeDeltaCallback = void Function(
   double deltaY,
 );
 
-/// Восьмизонный сенсорный периметр изменения габаритов оконного контейнера.
+/// Восьмизонный сенсорный периметр изменения габаритов окна.
 class WindowResizeEdge extends StatelessWidget {
   /// Функция обратного вызова при смещении ручки ресайза.
   final OnResizeDeltaCallback onResize;
+
+  /// Функция обратного вызова при завершении жеста изменения размера.
+  final VoidCallback? onResizeEnd;
 
   /// Толщина линейных сенсорных полос по периметру.
   final double edgeThickness;
@@ -24,8 +27,9 @@ class WindowResizeEdge extends StatelessWidget {
   const WindowResizeEdge({
     super.key,
     required this.onResize,
-    this.edgeThickness = 6.0,
-    this.cornerSize = 14.0,
+    this.onResizeEnd,
+    this.edgeThickness = 10.0,
+    this.cornerSize = 12.0,
   });
 
   @override
@@ -43,6 +47,7 @@ class WindowResizeEdge extends StatelessWidget {
             direction: ResizeDirection.north,
             cursor: SystemMouseCursors.resizeUpDown,
             onResize: onResize,
+            onResizeEnd: onResizeEnd,
           ),
         ),
         // Южное ребро (S)
@@ -55,6 +60,7 @@ class WindowResizeEdge extends StatelessWidget {
             direction: ResizeDirection.south,
             cursor: SystemMouseCursors.resizeUpDown,
             onResize: onResize,
+            onResizeEnd: onResizeEnd,
           ),
         ),
         // Западное ребро (W)
@@ -67,6 +73,7 @@ class WindowResizeEdge extends StatelessWidget {
             direction: ResizeDirection.west,
             cursor: SystemMouseCursors.resizeLeftRight,
             onResize: onResize,
+            onResizeEnd: onResizeEnd,
           ),
         ),
         // Восточное ребро (E)
@@ -79,6 +86,7 @@ class WindowResizeEdge extends StatelessWidget {
             direction: ResizeDirection.east,
             cursor: SystemMouseCursors.resizeLeftRight,
             onResize: onResize,
+            onResizeEnd: onResizeEnd,
           ),
         ),
         // Северо-западный угол (NW)
@@ -91,6 +99,7 @@ class WindowResizeEdge extends StatelessWidget {
             direction: ResizeDirection.northWest,
             cursor: SystemMouseCursors.resizeUpLeftDownRight,
             onResize: onResize,
+            onResizeEnd: onResizeEnd,
           ),
         ),
         // Северо-восточный угол (NE)
@@ -103,6 +112,7 @@ class WindowResizeEdge extends StatelessWidget {
             direction: ResizeDirection.northEast,
             cursor: SystemMouseCursors.resizeUpRightDownLeft,
             onResize: onResize,
+            onResizeEnd: onResizeEnd,
           ),
         ),
         // Юго-западный угол (SW)
@@ -115,9 +125,10 @@ class WindowResizeEdge extends StatelessWidget {
             direction: ResizeDirection.southWest,
             cursor: SystemMouseCursors.resizeUpRightDownLeft,
             onResize: onResize,
+            onResizeEnd: onResizeEnd,
           ),
         ),
-        // Юго-восточный угол (SE) с засечкой
+        // Юго-восточный угол (SE)
         Positioned(
           bottom: 0.0,
           right: 0.0,
@@ -127,6 +138,7 @@ class WindowResizeEdge extends StatelessWidget {
             direction: ResizeDirection.southEast,
             cursor: SystemMouseCursors.resizeUpLeftDownRight,
             onResize: onResize,
+            onResizeEnd: onResizeEnd,
           ),
         ),
       ],
@@ -138,11 +150,13 @@ class _ResizeHandle extends StatelessWidget {
   final ResizeDirection direction;
   final MouseCursor cursor;
   final OnResizeDeltaCallback onResize;
+  final VoidCallback? onResizeEnd;
 
   const _ResizeHandle({
     required this.direction,
     required this.cursor,
     required this.onResize,
+    this.onResizeEnd,
   });
 
   @override
@@ -154,6 +168,8 @@ class _ResizeHandle extends StatelessWidget {
         onPanUpdate: (DragUpdateDetails details) {
           onResize(direction, details.delta.dx, details.delta.dy);
         },
+        onPanEnd: (_) => onResizeEnd?.call(),
+        onPanCancel: () => onResizeEnd?.call(),
       ),
     );
   }

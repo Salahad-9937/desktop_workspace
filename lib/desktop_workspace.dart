@@ -32,6 +32,7 @@ export 'src/state/workspace_state.dart';
 
 // Презентационный слой
 export 'src/presentation/canvas/canvas_background.dart';
+export 'src/presentation/canvas/shared_seam_overlay.dart';
 export 'src/presentation/canvas/snap_dock_guides.dart';
 export 'src/presentation/canvas/snap_preview_box.dart';
 export 'src/presentation/canvas/workspace_canvas.dart';

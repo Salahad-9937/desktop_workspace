@@ -78,9 +78,7 @@ void main() {
       controller.focusWindow('win_split_secondary');
 
       state = container.read(workspaceControllerProvider);
-      // Порядок рендеринга Z-Index изменился
       expect(state.windows.last.id, 'win_split_secondary');
-      // Но порядок чипов в доке остался абсолютно стабильным!
       expect(
         state.dockOrder,
         <String>['win_split_primary', 'win_split_secondary'],
@@ -176,7 +174,147 @@ void main() {
 
       expect(untiled.snapZone, SnapZone.none);
       expect(untiled.isMaximized, isFalse);
-      expect(untiled.width, 500.0);
+    });
+
+    test(
+        'Срыв тайлинга: перетаскивание пристыкованного окна восстанавливает точные плавающие габариты',
+        () {
+      final WorkspaceController controller =
+          container.read(workspaceControllerProvider.notifier);
+      controller.updateViewportSize(1000.0, 800.0);
+
+      controller.applyPresetSplit(
+        windowsTabs: <List<WorkspaceTab>>[
+          <WorkspaceTab>[
+            const WorkspaceTab(id: 't1', typeId: 'v1', title: 'T1'),
+          ],
+          <WorkspaceTab>[
+            const WorkspaceTab(id: 't2', typeId: 'v2', title: 'T2'),
+          ],
+        ],
+      );
+
+      // Задаем окну точные плавающие габариты 360x280 (с учетом высоты дока 48px: 752 - 472 = 280)
+      controller.resizeWindow(
+        windowId: 'win_split_primary',
+        direction: ResizeDirection.east,
+        deltaX: -140.0,
+        deltaY: 0.0,
+        enableSeamResizing: false,
+        enableSnapping: false,
+      );
+      controller.resizeWindow(
+        windowId: 'win_split_primary',
+        direction: ResizeDirection.south,
+        deltaX: 0.0,
+        deltaY: -472.0,
+        enableSeamResizing: false,
+        enableSnapping: false,
+      );
+
+      // Применяем тайлинг (левая половина экрана, ширина 500px, restoreRect фиксирует 360x280)
+      controller.tileWindow('win_split_primary', SnapZone.leftHalf);
+
+      final WindowState tiledWin = container
+          .read(workspaceControllerProvider)
+          .windows
+          .firstWhere((WindowState w) => w.id == 'win_split_primary');
+      expect(tiledWin.width, 500.0);
+      expect(tiledWin.restoreRect?.width, 360.0);
+      expect(tiledWin.restoreRect?.height, 280.0);
+
+      // Перемещаем окно курсором (срыв тайлинга)
+      controller.moveWindow(
+        windowId: 'win_split_primary',
+        deltaX: 10.0,
+        deltaY: 10.0,
+        pointerX: 400.0,
+        pointerY: 200.0,
+        enableSnapping: false,
+        enableTilingDetection: false,
+      );
+
+      final WorkspaceState state = container.read(workspaceControllerProvider);
+      final WindowState draggedWin = state.windows
+          .firstWhere((WindowState w) => w.id == 'win_split_primary');
+
+      // Окно сорвало тайлинг, вернуло свои точные размеры 360x280
+      expect(draggedWin.snapZone, SnapZone.none);
+      expect(draggedWin.isMaximized, isFalse);
+      expect(draggedWin.width, 360.0);
+      expect(draggedWin.height, 280.0);
+    });
+
+    test('Магнитное притягивание ребра при масштабировании к смежному окну', () {
+      final WorkspaceController controller =
+          container.read(workspaceControllerProvider.notifier);
+      controller.updateViewportSize(1000.0, 800.0);
+
+      // Окно A: [0..480], Окно B: [500..1000]
+      controller.applyPresetSplit(
+        windowsTabs: <List<WorkspaceTab>>[
+          <WorkspaceTab>[
+            const WorkspaceTab(id: 't1', typeId: 'v1', title: 'T1'),
+          ],
+          <WorkspaceTab>[
+            const WorkspaceTab(id: 't2', typeId: 'v2', title: 'T2'),
+          ],
+        ],
+      );
+
+      // Устанавливаем окно A на ширину 480 (зазор 20px до окна B, которое на 500)
+      controller.resizeWindow(
+        windowId: 'win_split_primary',
+        direction: ResizeDirection.east,
+        deltaX: -20.0,
+        deltaY: 0.0,
+        enableSeamResizing: false,
+        enableSnapping: false,
+      );
+      controller.commitResize();
+
+      expect(
+        container
+            .read(workspaceControllerProvider)
+            .windows
+            .firstWhere((WindowState w) => w.id == 'win_split_primary')
+            .width,
+        480.0,
+      );
+
+      // Растягиваем окно A вправо на +15px (край 495px попадает в радиус магнита 10px к окну B на 500px)
+      controller.resizeWindow(
+        windowId: 'win_split_primary',
+        direction: ResizeDirection.east,
+        deltaX: 15.0,
+        deltaY: 0.0,
+        enableSeamResizing: false,
+        enableSnapping: true,
+      );
+
+      WindowState currentA = container
+          .read(workspaceControllerProvider)
+          .windows
+          .firstWhere((WindowState w) => w.id == 'win_split_primary');
+      // Магнит притянул правый край ровно к 500.0 (ширина стала 500.0)
+      expect(currentA.width, 500.0);
+
+      // Протягиваем дальше на +20px (выход за пределы радиуса магнита)
+      controller.resizeWindow(
+        windowId: 'win_split_primary',
+        direction: ResizeDirection.east,
+        deltaX: 20.0,
+        deltaY: 0.0,
+        enableSeamResizing: false,
+        enableSnapping: true,
+      );
+
+      currentA = container
+          .read(workspaceControllerProvider)
+          .windows
+          .firstWhere((WindowState w) => w.id == 'win_split_primary');
+      // Окно отлипло от шва и продолжило свободное наложение поверх окна B
+      expect(currentA.width, 515.0);
     });
 
     test('resizeWindow выполняет изменение размеров вдоль активного вектора',
@@ -285,7 +423,6 @@ void main() {
 
       const String windowId = 'win_solo_fullscreen';
 
-      // Переносим Таб A (индекс 0) в слот после Таба B (слот 2)
       controller.dropTabOnWindow(
         payload: const TabDragPayload(
           tab: WorkspaceTab(id: 'tab_a', typeId: 'type_a', title: 'Таб A'),
@@ -337,7 +474,6 @@ void main() {
         ],
       );
 
-      // Переносим вкладку 'tab_source_1' в окно 'win_split_primary' в индекс 1 (между 'tab_target_1' и 'tab_target_2')
       controller.dropTabOnWindow(
         payload: const TabDragPayload(
           tab: WorkspaceTab(
@@ -360,7 +496,6 @@ void main() {
       expect(targetWin.tabs.length, 3);
       expect(targetWin.tabs[1].id, 'tab_source_1');
       expect(targetWin.activeTabIndex, 1);
-      // Окно-источник опустело и каскадно закрылось
       expect(
         state.windows.any((WindowState w) => w.id == 'win_split_secondary'),
         isFalse,

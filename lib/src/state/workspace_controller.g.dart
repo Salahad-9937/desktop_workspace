@@ -45,7 +45,7 @@ final class WorkspaceControllerProvider
 }
 
 String _$workspaceControllerHash() =>
-    r'18b60f87ed16466a786a3458fefeb20838e4217d';
+    r'6d783eb0137fd1d1891da2ba52aab4414f67b990';
 
 /// Контроллер-оркестратор реактивного состояния холста на базе Riverpod Generator.
 

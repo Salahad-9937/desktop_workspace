@@ -30,6 +30,53 @@ void main() {
       tabs: <WorkspaceTab>[WorkspaceTab(id: 'tb', typeId: 'v', title: 'B')],
     );
 
+    test('Поиск и дедупликация общих швов findSharedSeams', () {
+      final List<SharedSeam> seams = SeamResizer.findSharedSeams(
+        windows: <WindowState>[winA, winB],
+        seamEpsilon: 6.0,
+        minSeamOverlap: 24.0,
+      );
+
+      expect(seams.length, 1);
+      expect(seams.first.isVertical, isTrue);
+      expect(seams.first.position, 400.0);
+      expect(seams.first.start, 0.0);
+      expect(seams.first.end, 600.0);
+      expect(seams.first.primaryWindowId, 'win_a');
+      expect(seams.first.secondaryWindowId, 'win_b');
+      expect(seams.first.direction, ResizeDirection.east);
+    });
+
+    test('Детекция общего шва hasSharedSeam между соприкасающимися окнами', () {
+      final bool hasSeamEast = SeamResizer.hasSharedSeam(
+        primaryWindow: winA,
+        allWindows: <WindowState>[winA, winB],
+        direction: ResizeDirection.east,
+        seamEpsilon: 6.0,
+        minSeamOverlap: 24.0,
+      );
+
+      final bool hasSeamWest = SeamResizer.hasSharedSeam(
+        primaryWindow: winB,
+        allWindows: <WindowState>[winA, winB],
+        direction: ResizeDirection.west,
+        seamEpsilon: 6.0,
+        minSeamOverlap: 24.0,
+      );
+
+      final bool hasSeamSouth = SeamResizer.hasSharedSeam(
+        primaryWindow: winA,
+        allWindows: <WindowState>[winA, winB],
+        direction: ResizeDirection.south,
+        seamEpsilon: 6.0,
+        minSeamOverlap: 24.0,
+      );
+
+      expect(hasSeamEast, isTrue);
+      expect(hasSeamWest, isTrue);
+      expect(hasSeamSouth, isFalse);
+    });
+
     test('Синхронное пропорциональное изменение вертикального шва', () {
       final List<WindowState> result = SeamResizer.resizeSeam(
         primaryWindow: winA,

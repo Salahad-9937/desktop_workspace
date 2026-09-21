@@ -32,6 +32,12 @@ class WorkspaceState {
   /// Глобальная конфигурация рабочего пространства.
   final WorkspaceConfig config;
 
+  /// Накопленная координата X перемещения без учета примагничивания.
+  final double? rawDragX;
+
+  /// Накопленная координата Y перемещения без учета примагничивания.
+  final double? rawDragY;
+
   /// Создает неизменяемый экземпляр [WorkspaceState].
   const WorkspaceState({
     this.windows = const <WindowState>[],
@@ -44,6 +50,8 @@ class WorkspaceState {
     this.draggingTabPayload,
     this.dockOrder = const <String>[],
     this.config = const WorkspaceConfig(),
+    this.rawDragX,
+    this.rawDragY,
   });
 
   /// Возвращает текущее сфокусированное окно либо `null`.
@@ -108,6 +116,9 @@ class WorkspaceState {
     bool clearDraggingTab = false,
     List<String>? dockOrder,
     WorkspaceConfig? config,
+    double? rawDragX,
+    double? rawDragY,
+    bool clearRawDrag = false,
   }) {
     return WorkspaceState(
       windows: windows ?? this.windows,
@@ -125,6 +136,8 @@ class WorkspaceState {
           : (draggingTabPayload ?? this.draggingTabPayload),
       dockOrder: dockOrder ?? this.dockOrder,
       config: config ?? this.config,
+      rawDragX: clearRawDrag ? null : (rawDragX ?? this.rawDragX),
+      rawDragY: clearRawDrag ? null : (rawDragY ?? this.rawDragY),
     );
   }
 
@@ -141,6 +154,8 @@ class WorkspaceState {
         other.soloWindowId == soloWindowId &&
         other.draggingTabPayload == draggingTabPayload &&
         other.config == config &&
+        other.rawDragX == rawDragX &&
+        other.rawDragY == rawDragY &&
         _listEquals(other.windows, windows) &&
         _listStringEquals(other.dockOrder, dockOrder);
   }
@@ -184,6 +199,8 @@ class WorkspaceState {
         soloWindowId,
         draggingTabPayload,
         config,
+        rawDragX,
+        rawDragY,
       );
 
   @override

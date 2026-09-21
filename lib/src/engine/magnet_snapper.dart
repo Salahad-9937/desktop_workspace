@@ -104,4 +104,84 @@ class MagnetSnapper {
 
     return (snappedX, snappedY);
   }
+
+  /// Вычисляет позицию деформируемого ребра окна при изменении размеров с учетом магнитного поля.
+  static double snapResizeEdge({
+    required double rawEdge,
+    required ResizeDirection direction,
+    required WorkspaceRect currentRect,
+    required WorkspaceRect availableArea,
+    required List<WindowState> otherWindows,
+    required double magnetThreshold,
+    required double minOverlap,
+  }) {
+    // 1. Приоритетное притягивание к внешним границам холста
+    if (direction.affectsRight) {
+      if ((rawEdge - availableArea.right).abs() < magnetThreshold) {
+        return availableArea.right;
+      }
+    } else if (direction.affectsLeft) {
+      if ((rawEdge - availableArea.left).abs() < magnetThreshold) {
+        return availableArea.left;
+      }
+    }
+
+    if (direction.affectsBottom) {
+      if ((rawEdge - availableArea.bottom).abs() < magnetThreshold) {
+        return availableArea.bottom;
+      }
+    } else if (direction.affectsTop) {
+      if ((rawEdge - availableArea.top).abs() < magnetThreshold) {
+        return availableArea.top;
+      }
+    }
+
+    // 2. Межоконное притягивание к ребрам смежных окон
+    for (final WindowState other in otherWindows) {
+      if (other.isMinimized) {
+        continue;
+      }
+      final WorkspaceRect b = other.rect;
+
+      if (direction.affectsLeft || direction.affectsRight) {
+        final double overlapY = math.max(
+          0.0,
+          math.min(currentRect.bottom, b.bottom) -
+              math.max(currentRect.top, b.top),
+        );
+
+        if (overlapY >= minOverlap) {
+          // Притягивание встык к левой грани соседа
+          if ((rawEdge - b.left).abs() < magnetThreshold) {
+            return b.left;
+          }
+          // Притягивание встык к правой грани соседа
+          if ((rawEdge - b.right).abs() < magnetThreshold) {
+            return b.right;
+          }
+        }
+      }
+
+      if (direction.affectsTop || direction.affectsBottom) {
+        final double overlapX = math.max(
+          0.0,
+          math.min(currentRect.right, b.right) -
+              math.max(currentRect.left, b.left),
+        );
+
+        if (overlapX >= minOverlap) {
+          // Притягивание встык к верхней грани соседа
+          if ((rawEdge - b.top).abs() < magnetThreshold) {
+            return b.top;
+          }
+          // Притягивание встык к нижней грани соседа
+          if ((rawEdge - b.bottom).abs() < magnetThreshold) {
+            return b.bottom;
+          }
+        }
+      }
+    }
+
+    return rawEdge;
+  }
 }

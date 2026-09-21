@@ -50,7 +50,7 @@ class WindowGeometryOps {
     );
   }
 
-  /// Перемещает окно с вычислением магнитного захвата и оверлея тайлинга.
+  /// Перемещает окно с детерминированным расчетом отрыва от магнита и срывом тайлинга.
   static WorkspaceState moveWindow({
     required WorkspaceState state,
     required String windowId,
@@ -69,12 +69,48 @@ class WindowGeometryOps {
     }
 
     final WindowState current = state.windows[index];
-    if (current.isMaximized) {
-      return untileWindow(state, windowId);
+    final bool isTiledOrMaximized =
+        current.isMaximized || current.snapZone != SnapZone.none;
+
+    double targetWidth = current.width;
+    double targetHeight = current.height;
+    WorkspaceRect? restoredRect = current.restoreRect;
+
+    double rawX;
+    double rawY;
+
+    // Срыв тайлинга: восстанавливаем точный размер окна, зафиксированный до входа в тайлинг
+    if (isTiledOrMaximized) {
+      final WindowConstraints defaultConstraints =
+          state.config.defaultConstraints;
+
+      final WorkspaceRect fallbackRect = WorkspaceRect(
+        x: state.availableArea.left + 40.0,
+        y: state.availableArea.top + 40.0,
+        width: defaultConstraints.clampWidth(480.0),
+        height: defaultConstraints.clampHeight(320.0),
+      );
+
+      final WorkspaceRect targetRestore = current.restoreRect ?? fallbackRect;
+      targetWidth = targetRestore.width;
+      targetHeight = targetRestore.height;
+
+      if (pointerX != null && pointerY != null) {
+        rawX = pointerX - (targetWidth / 2.0);
+        rawY = pointerY - (state.config.headerHeight / 2.0);
+      } else {
+        rawX = current.x + deltaX;
+        rawY = current.y + deltaY;
+      }
+
+      restoredRect = null;
+    } else {
+      rawX = (state.rawDragX ?? current.x) + deltaX;
+      rawY = (state.rawDragY ?? current.y) + deltaY;
     }
 
-    double targetX = current.x + deltaX;
-    double targetY = current.y + deltaY;
+    double snappedX = rawX;
+    double snappedY = rawY;
 
     if (enableSnapping) {
       final List<WindowState> passive = state.windows
@@ -82,24 +118,24 @@ class WindowGeometryOps {
           .toList(growable: false);
 
       final (double sx, double sy) = MagnetSnapper.snapPosition(
-        targetX: targetX,
-        targetY: targetY,
-        width: current.width,
-        height: current.height,
+        targetX: rawX,
+        targetY: rawY,
+        width: targetWidth,
+        height: targetHeight,
         availableArea: state.availableArea,
         otherWindows: passive,
         magnetThreshold: state.config.magnetThreshold,
         minOverlap: state.config.minEdgeOverlap,
       );
-      targetX = sx;
-      targetY = sy;
+      snappedX = sx;
+      snappedY = sy;
     }
 
     final (double cx, double cy) = BoundsClamper.clampWindowPosition(
-      targetX: targetX,
-      targetY: targetY,
-      windowWidth: current.width,
-      windowHeight: current.height,
+      targetX: snappedX,
+      targetY: snappedY,
+      windowWidth: targetWidth,
+      windowHeight: targetHeight,
       availableArea: state.availableArea,
       headerHeight: state.config.headerHeight,
       minVisibleWidth: state.config.minVisibleHeaderWidth,
@@ -114,12 +150,6 @@ class WindowGeometryOps {
         pointerY: pointerY,
         availableArea: state.availableArea,
         edgeThreshold: state.config.edgeTilingThreshold,
-        windowRect: WorkspaceRect(
-          x: cx,
-          y: cy,
-          width: current.width,
-          height: current.height,
-        ),
       );
       previewRect = SnapZoneDetector.calculatePreviewRect(
         zone: detectedZone,
@@ -131,7 +161,11 @@ class WindowGeometryOps {
     updated[index] = current.copyWith(
       x: cx,
       y: cy,
+      width: targetWidth,
+      height: targetHeight,
       snapZone: SnapZone.none,
+      isMaximized: false,
+      restoreRect: restoredRect,
     );
 
     return state.copyWith(
@@ -140,6 +174,8 @@ class WindowGeometryOps {
       pendingSnapZone: detectedZone,
       snapPreviewRect: previewRect,
       clearSnapPreview: previewRect == null,
+      rawDragX: rawX,
+      rawDragY: rawY,
     );
   }
 
@@ -149,16 +185,18 @@ class WindowGeometryOps {
       return tileWindow(state, windowId, state.pendingSnapZone).copyWith(
         pendingSnapZone: SnapZone.none,
         clearSnapPreview: true,
+        clearRawDrag: true,
       );
     }
 
     return state.copyWith(
       pendingSnapZone: SnapZone.none,
       clearSnapPreview: true,
+      clearRawDrag: true,
     );
   }
 
-  /// Применяет заданный режим тайлинга [zone] к окну [windowId].
+  /// Применяет заданный режим тайлинга [zone] к окну [windowId] с сохранением плавающих габаритов.
   static WorkspaceState tileWindow(
     WorkspaceState state,
     String windowId,
@@ -185,11 +223,11 @@ class WindowGeometryOps {
       return state;
     }
 
-    final WorkspaceRect restore = (current.snapZone == SnapZone.none &&
-            !current.isMaximized &&
-            current.restoreRect == null)
-        ? current.rect
-        : (current.restoreRect ?? current.rect);
+    // Если окно находилось в свободном режиме, фиксируем его текущие фактические габариты
+    final WorkspaceRect restore =
+        (current.snapZone == SnapZone.none && !current.isMaximized)
+            ? current.rect
+            : (current.restoreRect ?? current.rect);
 
     final List<WindowState> updated = List<WindowState>.of(state.windows);
     updated[index] = current.copyWith(
@@ -219,7 +257,8 @@ class WindowGeometryOps {
     }
 
     final WindowState current = state.windows[index];
-    final WindowConstraints defaultConstraints = state.config.defaultConstraints;
+    final WindowConstraints defaultConstraints =
+        state.config.defaultConstraints;
 
     final WorkspaceRect fallbackRect = WorkspaceRect(
       x: state.availableArea.left + 40.0,
@@ -247,7 +286,7 @@ class WindowGeometryOps {
     );
   }
 
-  /// Выполняет деформацию габаритов окна по ортогональным и диагональным векторам.
+  /// Выполняет деформацию габаритов окна с магнитным притягиванием к граням и швам.
   static WorkspaceState resizeWindow({
     required WorkspaceState state,
     required String windowId,
@@ -255,6 +294,7 @@ class WindowGeometryOps {
     required double deltaX,
     required double deltaY,
     required bool enableSeamResizing,
+    bool enableSnapping = true,
   }) {
     final int index = state.windows.indexWhere(
       (WindowState w) => w.id == windowId,
@@ -265,6 +305,7 @@ class WindowGeometryOps {
 
     final WindowState primary = state.windows[index];
 
+    // Если активен режим масштабирования состыкованной группы по общему шву
     if (enableSeamResizing) {
       final List<WindowState> resized = SeamResizer.resizeSeam(
         primaryWindow: primary,
@@ -283,28 +324,98 @@ class WindowGeometryOps {
       );
     }
 
+    // Одиночная модификация габаритов конкретного окна
     final WindowConstraints constraints =
         primary.resolveEffectiveConstraints(state.config.defaultConstraints);
+
+    final List<WindowState> passive = state.windows
+        .where((WindowState w) => w.id != windowId && !w.isMinimized)
+        .toList(growable: false);
 
     double newX = primary.x;
     double newY = primary.y;
     double newW = primary.width;
     double newH = primary.height;
 
+    double? nextRawDragX = state.rawDragX;
+    double? nextRawDragY = state.rawDragY;
+
     if (direction.affectsRight) {
-      newW = constraints.clampWidth(primary.width + deltaX);
+      final double rawRight =
+          (state.rawDragX ?? (primary.x + primary.width)) + deltaX;
+      nextRawDragX = rawRight;
+
+      double targetRight = rawRight;
+      if (enableSnapping) {
+        targetRight = MagnetSnapper.snapResizeEdge(
+          rawEdge: rawRight,
+          direction: ResizeDirection.east,
+          currentRect: primary.rect,
+          availableArea: state.availableArea,
+          otherWindows: passive,
+          magnetThreshold: state.config.magnetThreshold,
+          minOverlap: state.config.minEdgeOverlap,
+        );
+      }
+      newW = constraints.clampWidth(targetRight - primary.x);
     } else if (direction.affectsLeft) {
-      final double targetW = primary.width - deltaX;
+      final double rawLeft = (state.rawDragX ?? primary.x) + deltaX;
+      nextRawDragX = rawLeft;
+
+      double targetLeft = rawLeft;
+      if (enableSnapping) {
+        targetLeft = MagnetSnapper.snapResizeEdge(
+          rawEdge: rawLeft,
+          direction: ResizeDirection.west,
+          currentRect: primary.rect,
+          availableArea: state.availableArea,
+          otherWindows: passive,
+          magnetThreshold: state.config.magnetThreshold,
+          minOverlap: state.config.minEdgeOverlap,
+        );
+      }
+      final double targetW = (primary.x + primary.width) - targetLeft;
       newW = constraints.clampWidth(targetW);
-      newX = primary.x + (primary.width - newW);
+      newX = (primary.x + primary.width) - newW;
     }
 
     if (direction.affectsBottom) {
-      newH = constraints.clampHeight(primary.height + deltaY);
+      final double rawBottom =
+          (state.rawDragY ?? (primary.y + primary.height)) + deltaY;
+      nextRawDragY = rawBottom;
+
+      double targetBottom = rawBottom;
+      if (enableSnapping) {
+        targetBottom = MagnetSnapper.snapResizeEdge(
+          rawEdge: rawBottom,
+          direction: ResizeDirection.south,
+          currentRect: primary.rect,
+          availableArea: state.availableArea,
+          otherWindows: passive,
+          magnetThreshold: state.config.magnetThreshold,
+          minOverlap: state.config.minEdgeOverlap,
+        );
+      }
+      newH = constraints.clampHeight(targetBottom - primary.y);
     } else if (direction.affectsTop) {
-      final double targetH = primary.height - deltaY;
+      final double rawTop = (state.rawDragY ?? primary.y) + deltaY;
+      nextRawDragY = rawTop;
+
+      double targetTop = rawTop;
+      if (enableSnapping) {
+        targetTop = MagnetSnapper.snapResizeEdge(
+          rawEdge: rawTop,
+          direction: ResizeDirection.north,
+          currentRect: primary.rect,
+          availableArea: state.availableArea,
+          otherWindows: passive,
+          magnetThreshold: state.config.magnetThreshold,
+          minOverlap: state.config.minEdgeOverlap,
+        );
+      }
+      final double targetH = (primary.y + primary.height) - targetTop;
       newH = constraints.clampHeight(targetH);
-      newY = primary.y + (primary.height - newH);
+      newY = (primary.y + primary.height) - newH;
     }
 
     final List<WindowState> updated = List<WindowState>.of(state.windows);
@@ -314,12 +425,20 @@ class WindowGeometryOps {
       width: newW,
       height: newH,
       snapZone: SnapZone.none,
+      restoreRect: null,
     );
 
     return state.copyWith(
       windows: updated,
       focusedWindowId: windowId,
+      rawDragX: nextRawDragX,
+      rawDragY: nextRawDragY,
     );
+  }
+
+  /// Завершает интерактивную фазу изменения размеров окна со сбросом аккумулятора магнита.
+  static WorkspaceState commitResize(WorkspaceState state) {
+    return state.copyWith(clearRawDrag: true);
   }
 
   /// Переключает развертывание окна во весь экран.

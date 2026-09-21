@@ -4,67 +4,42 @@ import '../model/geometry_types.dart';
 class SnapZoneDetector {
   const SnapZoneDetector._();
 
-  /// Определяет целевую зону тайлинга по положению курсора и физическим границам окна.
+  /// Определяет целевую зону тайлинга строго по положению курсора у границ холста.
   static SnapZone detectZone({
     required double pointerX,
     required double pointerY,
     required WorkspaceRect availableArea,
     required double edgeThreshold,
-    WorkspaceRect? windowRect,
   }) {
     final double relX = pointerX - availableArea.left;
     final double relY = pointerY - availableArea.top;
     final double w = availableArea.width;
     final double h = availableArea.height;
 
-    // Триггер по курсору либо по касанию верхней границы окна к краю холста
-    final bool isTopEdge = (relY <= edgeThreshold &&
-            relX > edgeThreshold &&
-            relX < (w - edgeThreshold)) ||
-        (windowRect != null &&
-            (windowRect.top - availableArea.top).abs() <= 8.0 &&
-            relX > edgeThreshold &&
-            relX < (w - edgeThreshold));
-
-    if (isTopEdge) {
+    // 1. Полноэкранный режим (верхний край экрана между угловыми зонами)
+    if (relY <= edgeThreshold &&
+        relX > edgeThreshold &&
+        relX < (w - edgeThreshold)) {
       return SnapZone.maximize;
     }
 
-    // Триггер по левому краю (курсор у края либо левая граница окна прижата к краю холста)
-    final bool isLeftEdge = (relX <= edgeThreshold) ||
-        (windowRect != null &&
-            (windowRect.left - availableArea.left).abs() <= 12.0);
-
-    if (isLeftEdge) {
-      final double effectiveY = windowRect != null
-          ? (pointerY.clamp(windowRect.top, windowRect.bottom) -
-              availableArea.top)
-          : relY;
-
-      if (effectiveY <= h * 0.35) {
+    // 2. Левый край экрана (четверти и вертикальная половина)
+    if (relX <= edgeThreshold) {
+      if (relY <= h * 0.35) {
         return SnapZone.topLeft;
       }
-      if (effectiveY >= h * 0.65) {
+      if (relY >= h * 0.65) {
         return SnapZone.bottomLeft;
       }
       return SnapZone.leftHalf;
     }
 
-    // Триггер по правому краю (курсор у края либо правая граница окна прижата к краю холста)
-    final bool isRightEdge = (relX >= (w - edgeThreshold)) ||
-        (windowRect != null &&
-            (availableArea.right - windowRect.right).abs() <= 12.0);
-
-    if (isRightEdge) {
-      final double effectiveY = windowRect != null
-          ? (pointerY.clamp(windowRect.top, windowRect.bottom) -
-              availableArea.top)
-          : relY;
-
-      if (effectiveY <= h * 0.35) {
+    // 3. Правый край экрана (четверти и вертикальная половина)
+    if (relX >= (w - edgeThreshold)) {
+      if (relY <= h * 0.35) {
         return SnapZone.topRight;
       }
-      if (effectiveY >= h * 0.65) {
+      if (relY >= h * 0.65) {
         return SnapZone.bottomRight;
       }
       return SnapZone.rightHalf;

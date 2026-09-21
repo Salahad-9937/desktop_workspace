@@ -76,7 +76,7 @@ class _CounterStatefulPanelState extends State<CounterStatefulPanel> {
   Widget build(BuildContext context) {
     final WorkspaceThemeData theme = WorkspaceTheme.of(context);
 
-    return Padding(
+    return SingleChildScrollView(
       padding: const EdgeInsets.all(16.0),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -98,13 +98,19 @@ class _CounterStatefulPanelState extends State<CounterStatefulPanel> {
             runSpacing: 8.0,
             children: <Widget>[
               ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 10.0),
+                ),
                 onPressed: () => setState(() => _counter++),
-                icon: const Icon(Icons.add_rounded),
+                icon: const Icon(Icons.add_rounded, size: 16.0),
                 label: const Text('Прибавить'),
               ),
               OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 10.0),
+                ),
                 onPressed: () => setState(() => _counter = 0),
-                icon: const Icon(Icons.refresh_rounded),
+                icon: const Icon(Icons.refresh_rounded, size: 16.0),
                 label: const Text('Сбросить'),
               ),
             ],

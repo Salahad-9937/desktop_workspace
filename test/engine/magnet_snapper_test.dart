@@ -69,5 +69,65 @@ void main() {
       expect(snapped.$1, 300.0); // примагнитилось к right = 300.0
       expect(snapped.$2, 150.0);
     });
+
+    test('snapResizeEdge: примагничивание правого ребра к левой грани соседа', () {
+      const WindowState neighbor = WindowState(
+        id: 'win_neighbor',
+        x: 500.0,
+        y: 100.0,
+        width: 300.0,
+        height: 400.0,
+        tabs: <WorkspaceTab>[WorkspaceTab(id: 'n', typeId: 'v', title: 'N')],
+      );
+
+      const WorkspaceRect current = WorkspaceRect(
+        x: 100.0,
+        y: 100.0,
+        width: 395.0, // правое ребро на 495.0 (зазор 5px до соседа 500.0)
+        height: 400.0,
+      );
+
+      final double snapped = MagnetSnapper.snapResizeEdge(
+        rawEdge: 495.0,
+        direction: ResizeDirection.east,
+        currentRect: current,
+        availableArea: area,
+        otherWindows: <WindowState>[neighbor],
+        magnetThreshold: 10.0,
+        minOverlap: 24.0,
+      );
+
+      expect(snapped, 500.0);
+    });
+
+    test('snapResizeEdge: свободный проход за пределы порога магнита', () {
+      const WindowState neighbor = WindowState(
+        id: 'win_neighbor',
+        x: 500.0,
+        y: 100.0,
+        width: 300.0,
+        height: 400.0,
+        tabs: <WorkspaceTab>[WorkspaceTab(id: 'n', typeId: 'v', title: 'N')],
+      );
+
+      const WorkspaceRect current = WorkspaceRect(
+        x: 100.0,
+        y: 100.0,
+        width: 415.0, // правое ребро на 515.0 (превысило порог 10px на 5px)
+        height: 400.0,
+      );
+
+      final double notSnapped = MagnetSnapper.snapResizeEdge(
+        rawEdge: 515.0,
+        direction: ResizeDirection.east,
+        currentRect: current,
+        availableArea: area,
+        otherWindows: <WindowState>[neighbor],
+        magnetThreshold: 10.0,
+        minOverlap: 24.0,
+      );
+
+      expect(notSnapped, 515.0);
+    });
   });
 }

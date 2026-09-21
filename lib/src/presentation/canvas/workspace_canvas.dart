@@ -11,6 +11,7 @@ import '../../state/workspace_state.dart';
 import '../dock/workspace_dock.dart';
 import '../window/window_frame.dart';
 import 'canvas_background.dart';
+import 'shared_seam_overlay.dart';
 import 'snap_dock_guides.dart';
 import 'snap_preview_box.dart';
 
@@ -119,6 +120,7 @@ class WorkspaceCanvas extends ConsumerWidget {
                             onMove: (_, __, ___) {},
                             onMoveEnd: () {},
                             onResize: (_, __, ___) {},
+                            onResizeEnd: () {},
                             onToggleMaximize: () =>
                                 controller.toggleSoloMode(state.soloWindow!.id),
                             onSelectTab: (int idx) => controller.selectTab(
@@ -176,8 +178,10 @@ class WorkspaceCanvas extends ConsumerWidget {
                                   direction: dir,
                                   deltaX: dx,
                                   deltaY: dy,
+                                  enableSeamResizing: false,
                                 );
                               },
+                              onResizeEnd: () => controller.commitResize(),
                               onToggleMaximize: () =>
                                   controller.toggleMaximizeWindow(win.id),
                               onSelectTab: (int idx) =>
@@ -239,8 +243,10 @@ class WorkspaceCanvas extends ConsumerWidget {
                                   direction: dir,
                                   deltaX: dx,
                                   deltaY: dy,
+                                  enableSeamResizing: false,
                                 );
                               },
+                              onResizeEnd: () => controller.commitResize(),
                               onToggleMaximize: () =>
                                   controller.toggleMaximizeWindow(win.id),
                               onSelectTab: (int idx) =>
@@ -269,8 +275,29 @@ class WorkspaceCanvas extends ConsumerWidget {
                               onCloseWindow: () =>
                                   controller.closeWindow(win.id),
                             ),
+                          // Слой 4: Интерактивный оверлей единых общих швов
+                          SharedSeamOverlay(
+                            windows: state.windows,
+                            seamEpsilon: state.config.seamEpsilon,
+                            minSeamOverlap: state.config.minSeamOverlap,
+                            onResizeSeam: (
+                              String wId,
+                              ResizeDirection dir,
+                              double dx,
+                              double dy,
+                            ) {
+                              controller.resizeWindow(
+                                windowId: wId,
+                                direction: dir,
+                                deltaX: dx,
+                                deltaY: dy,
+                                enableSeamResizing: true,
+                              );
+                            },
+                            onResizeEnd: () => controller.commitResize(),
+                          ),
                         ],
-                        // Слой 4: Оверлей предпросмотра тайлинга
+                        // Слой 5: Оверлей предпросмотра тайлинга
                         SnapPreviewBox(
                           targetRect: state.snapPreviewRect,
                         ),

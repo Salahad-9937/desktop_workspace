@@ -37,6 +37,9 @@ class WindowFrame extends StatelessWidget {
   final void Function(ResizeDirection direction, double deltaX, double deltaY)
       onResize;
 
+  /// Завершение изменения размера окна.
+  final VoidCallback? onResizeEnd;
+
   /// Двойной клик по заголовку.
   final VoidCallback onToggleMaximize;
 
@@ -78,6 +81,7 @@ class WindowFrame extends StatelessWidget {
     required this.onMove,
     required this.onMoveEnd,
     required this.onResize,
+    this.onResizeEnd,
     required this.onToggleMaximize,
     required this.onSelectTab,
     required this.onCloseTab,
@@ -166,6 +170,7 @@ class WindowFrame extends StatelessWidget {
                   if (!window.isMaximized)
                     WindowResizeEdge(
                       onResize: onResize,
+                      onResizeEnd: onResizeEnd,
                     ),
                 ],
               ),
