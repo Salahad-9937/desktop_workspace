@@ -1,41 +1,47 @@
 import 'package:flutter/material.dart';
 
-/// Анимированный оверлей предварительного просмотра геометрии прилипания окна (Snap Preview).
+import '../../model/geometry_types.dart';
+import '../../theme/workspace_theme.dart';
+import '../../theme/workspace_theme_data.dart';
+
+/// Высокодинамичный полупрозрачный оверлей контура предпросмотра будущей стыковки.
 class SnapPreviewBox extends StatelessWidget {
-  /// Целевые геометрические границы предварительного просмотра.
-  final Rect rect;
+  /// Геометрический целевой прямоугольник оверлея.
+  final WorkspaceRect? targetRect;
 
   /// Создает экземпляр [SnapPreviewBox].
   const SnapPreviewBox({
     super.key,
-    required this.rect,
+    required this.targetRect,
   });
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedPositioned(
-      duration: const Duration(milliseconds: 110),
-      curve: Curves.easeOut,
-      left: rect.left,
-      top: rect.top,
-      width: rect.width,
-      height: rect.height,
+    if (targetRect == null) {
+      return const SizedBox.shrink();
+    }
+
+    final WorkspaceThemeData theme = WorkspaceTheme.of(context);
+
+    return Positioned(
+      left: targetRect!.x,
+      top: targetRect!.y,
+      width: targetRect!.width,
+      height: targetRect!.height,
       child: IgnorePointer(
-        child: Container(
-          margin: const EdgeInsets.all(3.0),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 100),
+          curve: Curves.easeOutCubic,
           decoration: BoxDecoration(
-            color: const Color(0xFF00E5FF).withValues(alpha: 0.16),
+            color: theme.previewOverlay,
+            borderRadius: BorderRadius.circular(theme.windowRadius),
             border: Border.all(
-              color: const Color(0xFF00E5FF),
-              width: 2.0,
+              color: theme.borderActive,
+              width: 1.5,
             ),
-            borderRadius: BorderRadius.circular(8.0),
           ),
         ),
       ),
     );
   }
 }
-
-/// Псевдоним обратной совместимости для [SnapPreviewBox].
-typedef SnapPreviewOverlay = SnapPreviewBox;

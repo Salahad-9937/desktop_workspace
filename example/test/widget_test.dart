@@ -6,8 +6,6 @@ void main() {
   testWidgets(
     'Smoke-тест инициализации и монтирования DesktopWorkspaceExampleApp',
     (WidgetTester tester) async {
-      initializePanels();
-
       await tester.pumpWidget(
         const ProviderScope(
           child: DesktopWorkspaceExampleApp(),

@@ -1,10 +1,9 @@
+import 'dart:async';
 import 'package:desktop_workspace/desktop_workspace.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-/// Точка входа в демонстрационное приложение многооконного рабочего пространства.
 void main() {
-  initializePanels();
   runApp(
     const ProviderScope(
       child: DesktopWorkspaceExampleApp(),
@@ -12,52 +11,49 @@ void main() {
   );
 }
 
-/// Выполняет декларативную регистрацию модулей в [PanelRegistry].
-void initializePanels() {
-  PanelRegistry.instance.clear();
-  PanelRegistry.instance.registerAll(<PanelDefinition>[
-    PanelDefinition(
-      id: 'view_counter',
-      title: 'Интерактивный счетчик',
-      icon: Icons.add_circle_outline_rounded,
-      accentColor: const Color(0xFF00E5FF),
-      keepAlive: true,
-      constraints: const WindowConstraints(
-        minWidth: 320.0,
-        minHeight: 240.0,
-      ),
-      builder: (BuildContext context, WindowState win, WorkspaceTab tab) {
-        return const CounterStatefulPanel();
-      },
+/// Список определений прикладных представлений для каталога.
+final List<ViewDefinition> exampleViewDefinitions = <ViewDefinition>[
+  ViewDefinition(
+    typeId: 'view_counter',
+    title: 'Интерактивный счетчик',
+    icon: Icons.add_circle_outline_rounded,
+    accentColor: const Color(0xFF00E5FF),
+    keepAlive: true,
+    constraints: const WindowConstraints(
+      minWidth: 320.0,
+      minHeight: 240.0,
     ),
-    PanelDefinition(
-      id: 'view_analytics',
-      title: 'Дашборд аналитики',
-      icon: Icons.analytics_outlined,
-      accentColor: const Color(0xFF00E676),
-      keepAlive: true,
-      builder: (BuildContext context, WindowState win, WorkspaceTab tab) {
-        return const AnalyticsMockPanel();
-      },
+    builder: (BuildContext context, WindowState win, WorkspaceTab tab) {
+      return const CounterStatefulPanel();
+    },
+  ),
+  ViewDefinition(
+    typeId: 'view_analytics',
+    title: 'Дашборд аналитики',
+    icon: Icons.analytics_outlined,
+    accentColor: const Color(0xFF00E676),
+    keepAlive: true,
+    builder: (BuildContext context, WindowState win, WorkspaceTab tab) {
+      return const AnalyticsMockPanel();
+    },
+  ),
+  ViewDefinition(
+    typeId: 'view_settings',
+    title: 'Параметры окружения',
+    icon: Icons.settings_suggest_rounded,
+    accentColor: const Color(0xFFFFAB00),
+    keepAlive: true,
+    constraints: const WindowConstraints(
+      minWidth: 360.0,
+      minHeight: 280.0,
     ),
-    PanelDefinition(
-      id: 'view_settings',
-      title: 'Параметры и тема',
-      icon: Icons.settings_suggest_rounded,
-      accentColor: const Color(0xFFFFAB00),
-      keepAlive: true,
-      constraints: const WindowConstraints(
-        minWidth: 360.0,
-        minHeight: 280.0,
-      ),
-      builder: (BuildContext context, WindowState win, WorkspaceTab tab) {
-        return const SettingsControlPanel();
-      },
-    ),
-  ]);
-}
+    builder: (BuildContext context, WindowState win, WorkspaceTab tab) {
+      return const SettingsControlPanel();
+    },
+  ),
+];
 
-/// Панель с локальным изменяемым состоянием для валидации сохранения стейта при смене вкладок.
+/// Панель с локальным состоянием для проверки сохранения данных при смене вкладок.
 class CounterStatefulPanel extends StatefulWidget {
   /// Создает экземпляр [CounterStatefulPanel].
   const CounterStatefulPanel({super.key});
@@ -86,31 +82,26 @@ class _CounterStatefulPanelState extends State<CounterStatefulPanel> {
         mainAxisAlignment: MainAxisAlignment.center,
         children: <Widget>[
           Text(
-            'Состояние сохраняется в памяти (keepAlive: true)',
-            style: TextStyle(
-              fontSize: 12.0,
-              color: theme.textMuted,
-            ),
+            'Состояние удерживается в памяти (keepAlive: true)',
+            style: TextStyle(fontSize: 12.0, color: theme.textMuted),
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 14.0),
           Text(
             'Значение: $_counter',
-            style: const TextStyle(
-              fontSize: 24.0,
-              fontWeight: FontWeight.bold,
-            ),
+            style: const TextStyle(fontSize: 24.0, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 12.0),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
+          Wrap(
+            alignment: WrapAlignment.center,
+            spacing: 8.0,
+            runSpacing: 8.0,
             children: <Widget>[
               ElevatedButton.icon(
                 onPressed: () => setState(() => _counter++),
                 icon: const Icon(Icons.add_rounded),
                 label: const Text('Прибавить'),
               ),
-              const SizedBox(width: 8.0),
               OutlinedButton.icon(
                 onPressed: () => setState(() => _counter = 0),
                 icon: const Icon(Icons.refresh_rounded),
@@ -122,7 +113,7 @@ class _CounterStatefulPanelState extends State<CounterStatefulPanel> {
           TextField(
             controller: _textController,
             decoration: const InputDecoration(
-              labelText: 'Введенный текст сохраняется при переключении табов',
+              labelText: 'Введенный текст сохраняется при смене табов',
               border: OutlineInputBorder(),
               isDense: true,
             ),
@@ -154,18 +145,12 @@ class AnalyticsMockPanel extends StatelessWidget {
           const SizedBox(height: 12.0),
           const Text(
             'Мониторинг метрик активен',
-            style: TextStyle(
-              fontSize: 16.0,
-              fontWeight: FontWeight.bold,
-            ),
+            style: TextStyle(fontSize: 16.0, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 6.0),
           Text(
-            'Потоковая отрисовка окон без Rebuild Thrashing',
-            style: TextStyle(
-              fontSize: 12.0,
-              color: theme.textMuted,
-            ),
+            'Изоляция рендеринга без каскадных Rebuilds',
+            style: TextStyle(fontSize: 12.0, color: theme.textMuted),
           ),
         ],
       ),
@@ -173,7 +158,7 @@ class AnalyticsMockPanel extends StatelessWidget {
   }
 }
 
-/// Панель управления параметрами окружения и стилизации.
+/// Панель управления параметрами.
 class SettingsControlPanel extends StatelessWidget {
   /// Создает экземпляр [SettingsControlPanel].
   const SettingsControlPanel({super.key});
@@ -188,18 +173,13 @@ class SettingsControlPanel extends StatelessWidget {
         children: <Widget>[
           ListTile(
             leading: Icon(Icons.palette_outlined, color: theme.warningColor),
-            title: const Text('Дизайн-система ThemeExtension'),
-            subtitle: const Text('Поддержка светлой, темной и корпоративной тем'),
-          ),
-          ListTile(
-            leading: Icon(Icons.language_rounded, color: theme.accentColor),
-            title: const Text('Локализация через WorkspaceLocalizations'),
-            subtitle: const Text('Готовые контракты для русского и английского языков'),
+            title: const Text('Дизайн-токены ThemeExtension'),
+            subtitle: const Text('Полноценная поддержка светлой и темной тем'),
           ),
           ListTile(
             leading: Icon(Icons.view_quilt_rounded, color: theme.secondaryAccent),
             title: const Text('Сетки, тайлинг и общий шов'),
-            subtitle: const Text('Индивидуальные WindowConstraints на уровне панелей'),
+            subtitle: const Text('Синхронное масштабирование состыкованных окон'),
           ),
         ],
       ),
@@ -207,7 +187,7 @@ class SettingsControlPanel extends StatelessWidget {
   }
 }
 
-/// Минимальное демонстрационное приложение рабочего пространства.
+/// Демонстрационное приложение рабочего пространства.
 class DesktopWorkspaceExampleApp extends ConsumerStatefulWidget {
   /// Создает экземпляр [DesktopWorkspaceExampleApp].
   const DesktopWorkspaceExampleApp({super.key});
@@ -220,20 +200,38 @@ class DesktopWorkspaceExampleApp extends ConsumerStatefulWidget {
 class _DesktopWorkspaceExampleAppState
     extends ConsumerState<DesktopWorkspaceExampleApp> {
   bool _isDark = true;
-  bool _isRussian = true;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final List<WorkspaceTab> tabs = PanelRegistry.instance.toTabs();
       ref.read(workspaceControllerProvider.notifier).applyPresetSplit(
         windowsTabs: <List<WorkspaceTab>>[
-          <WorkspaceTab>[tabs[0]],
-          <WorkspaceTab>[tabs[1], tabs[2]],
+          <WorkspaceTab>[exampleViewDefinitions[0].toTab()],
+          <WorkspaceTab>[
+            exampleViewDefinitions[1].toTab(),
+            exampleViewDefinitions[2].toTab(),
+          ],
         ],
       );
     });
+  }
+
+  void _openCatalog(BuildContext innerContext) {
+    final WorkspaceState state = ref.read(workspaceControllerProvider);
+    final WorkspaceController controller =
+        ref.read(workspaceControllerProvider.notifier);
+
+    unawaited(
+      ViewCatalogPalette.show(
+        context: innerContext,
+        definitions: exampleViewDefinitions,
+        currentWindows: state.windows,
+        onSelectDefinition: (ViewDefinition def, ViewInstanceStatus status) {
+          controller.openView(definition: def);
+        },
+      ),
+    );
   }
 
   @override
@@ -241,10 +239,6 @@ class _DesktopWorkspaceExampleAppState
     final WorkspaceThemeData workspaceTheme = _isDark
         ? const WorkspaceThemeData.dark()
         : const WorkspaceThemeData.light();
-
-    final WorkspaceStrings strings = _isRussian
-        ? const DefaultWorkspaceStrings()
-        : const EnglishWorkspaceStrings();
 
     return MaterialApp(
       title: 'Desktop Workspace Demo',
@@ -254,31 +248,52 @@ class _DesktopWorkspaceExampleAppState
         scaffoldBackgroundColor: workspaceTheme.spaceBackground,
         extensions: <ThemeExtension<dynamic>>[workspaceTheme],
       ),
-      home: WorkspaceLocalizations(
-        strings: strings,
-        child: DesktopCanvas(
-          tabTemplates: PanelRegistry.instance.toTabs(),
-          taskbarTrailing: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: <Widget>[
-              IconButton(
-                icon: Icon(
-                  _isDark ? Icons.light_mode_rounded : Icons.dark_mode_rounded,
-                  size: 16.0,
-                ),
-                tooltip: 'Переключить тему',
-                onPressed: () => setState(() => _isDark = !_isDark),
+      home: Builder(
+        builder: (BuildContext innerContext) {
+          return WorkspaceTheme(
+            data: workspaceTheme,
+            child: WorkspaceCanvas(
+              views: exampleViewDefinitions,
+              dockLeading: IconButton(
+                icon: const Icon(Icons.grid_view_rounded, size: 18.0),
+                tooltip: 'Открыть каталог представлений',
+                onPressed: () => _openCatalog(innerContext),
               ),
-              IconButton(
-                icon: const Icon(Icons.translate_rounded, size: 16.0),
-                tooltip: 'Switch language / Сменить язык',
-                onPressed: () => setState(() => _isRussian = !_isRussian),
+              dockTrailing: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: <Widget>[
+                  IconButton(
+                    icon: Icon(
+                      _isDark
+                          ? Icons.light_mode_rounded
+                          : Icons.dark_mode_rounded,
+                      size: 16.0,
+                    ),
+                    tooltip: 'Переключить тему',
+                    onPressed: () => setState(() => _isDark = !_isDark),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.refresh_rounded, size: 16.0),
+                    tooltip: 'Сбросить в сплит 50/50',
+                    onPressed: () {
+                      ref
+                          .read(workspaceControllerProvider.notifier)
+                          .applyPresetSplit(
+                        windowsTabs: <List<WorkspaceTab>>[
+                          <WorkspaceTab>[exampleViewDefinitions[0].toTab()],
+                          <WorkspaceTab>[
+                            exampleViewDefinitions[1].toTab(),
+                            exampleViewDefinitions[2].toTab(),
+                          ],
+                        ],
+                      );
+                    },
+                  ),
+                ],
               ),
-              const SizedBox(width: 6.0),
-              const SystemTray(),
-            ],
-          ),
-        ),
+            ),
+          );
+        },
       ),
     );
   }

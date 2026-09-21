@@ -1,204 +1,159 @@
 import 'package:flutter/material.dart';
-import '../../state/models/geometry_types.dart';
 
-/// Виджет визуализации краевых зон магнитного прилипания к экрану.
+import '../../model/geometry_types.dart';
+import '../../theme/workspace_theme.dart';
+import '../../theme/workspace_theme_data.dart';
+
+/// Слой пассивных направляющих контуров прилипания и зон тайлинга.
 class SnapDockGuides extends StatelessWidget {
-  /// Текущая активная зона прилипания при перетаскивании.
-  final SnapZone pendingSnapZone;
+  /// Доступная рабочая область холста.
+  final WorkspaceRect availableArea;
+
+  /// Активная зона тайлинга при перетаскивании.
+  final SnapZone activeZone;
 
   /// Создает экземпляр [SnapDockGuides].
   const SnapDockGuides({
     super.key,
-    required this.pendingSnapZone,
+    required this.availableArea,
+    this.activeZone = SnapZone.none,
   });
 
-  Widget _buildDockZone({
-    required SnapZone zone,
-    required Alignment alignment,
-    required double? width,
-    required double? height,
-    required IconData icon,
-    required String label,
-    required bool isVertical,
-  }) {
-    final bool isHighlighted = pendingSnapZone == zone;
+  @override
+  Widget build(BuildContext context) {
+    if (availableArea.width <= 0.0 || availableArea.height <= 0.0) {
+      return const SizedBox.shrink();
+    }
 
-    return Align(
-      alignment: alignment,
-      child: Container(
-        width: width,
-        height: height,
-        margin: const EdgeInsets.all(3.0),
-        decoration: BoxDecoration(
-          color: isHighlighted
-              ? const Color(0xFF00E5FF).withValues(alpha: 0.18)
-              : const Color(0xFF0B111D).withValues(alpha: 0.35),
-          borderRadius: BorderRadius.circular(4.0),
-          border: Border.all(
-            color: isHighlighted
-                ? const Color(0xFF00E5FF)
-                : const Color(0xFF162132).withValues(alpha: 0.5),
-            width: isHighlighted ? 1.5 : 1.0,
-          ),
-        ),
-        child: Center(
-          child: Opacity(
-            opacity: isHighlighted ? 1.0 : 0.45,
-            child: isVertical
-                ? Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    mainAxisSize: MainAxisSize.min,
-                    children: <Widget>[
-                      Icon(
-                        icon,
-                        size: 13.0,
-                        color: isHighlighted
-                            ? const Color(0xFF00E5FF)
-                            : const Color(0xFF78909C),
-                      ),
-                      const SizedBox(height: 6.0),
-                      RotatedBox(
-                        quarterTurns: 3,
-                        child: Text(
-                          label,
-                          style: TextStyle(
-                            fontSize: 8.5,
-                            letterSpacing: 0.8,
-                            fontWeight: isHighlighted
-                                ? FontWeight.bold
-                                : FontWeight.normal,
-                            color: isHighlighted
-                                ? const Color(0xFF00E5FF)
-                                : const Color(0xFF78909C),
-                          ),
-                        ),
-                      ),
-                    ],
-                  )
-                : Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    mainAxisSize: MainAxisSize.min,
-                    children: <Widget>[
-                      Icon(
-                        icon,
-                        size: 14.0,
-                        color: isHighlighted
-                            ? const Color(0xFF00E5FF)
-                            : const Color(0xFF78909C),
-                      ),
-                      const SizedBox(width: 6.0),
-                      Text(
-                        label,
-                        style: TextStyle(
-                          fontSize: 9.0,
-                          fontWeight: isHighlighted
-                              ? FontWeight.bold
-                              : FontWeight.normal,
-                          color: isHighlighted
-                              ? const Color(0xFF00E5FF)
-                              : const Color(0xFF78909C),
-                        ),
-                      ),
-                    ],
-                  ),
+    final WorkspaceThemeData theme = WorkspaceTheme.of(context);
+
+    return IgnorePointer(
+      child: RepaintBoundary(
+        child: CustomPaint(
+          size: Size(availableArea.width, availableArea.height),
+          painter: _SnapGuidesPainter(
+            availableArea: availableArea,
+            activeZone: activeZone,
+            idleColor: theme.borderInactive.withValues(alpha: 0.25),
+            activeColor: theme.borderActive.withValues(alpha: 0.7),
           ),
         ),
       ),
     );
   }
+}
+
+class _SnapGuidesPainter extends CustomPainter {
+  final WorkspaceRect availableArea;
+  final SnapZone activeZone;
+  final Color idleColor;
+  final Color activeColor;
+
+  const _SnapGuidesPainter({
+    required this.availableArea,
+    required this.activeZone,
+    required this.idleColor,
+    required this.activeColor,
+  });
 
   @override
-  Widget build(BuildContext context) {
-    const double guideBreadth = 24.0;
+  void paint(Canvas canvas, Size size) {
+    final double w = size.width;
+    final double h = size.height;
+    final double halfW = w / 2.0;
+    final double halfH = h / 2.0;
 
-    return IgnorePointer(
-      child: LayoutBuilder(
-        builder: (BuildContext context, BoxConstraints constraints) {
-          final double h = constraints.maxHeight;
-          final double quarterH = h * 0.35;
-          final double halfH = h * 0.30;
+    final Paint defaultPaint = Paint()
+      ..color = idleColor
+      ..strokeWidth = 1.0
+      ..style = PaintingStyle.stroke;
 
-          return Stack(
-            children: <Widget>[
-              _buildDockZone(
-                zone: SnapZone.maximize,
-                alignment: Alignment.topCenter,
-                width: 240.0,
-                height: 28.0,
-                icon: Icons.fullscreen_rounded,
-                label: 'ВЕСЬ ЭКРАН',
-                isVertical: false,
-              ),
-              _buildDockZone(
-                zone: SnapZone.topLeft,
-                alignment: Alignment.topLeft,
-                width: guideBreadth,
-                height: quarterH,
-                icon: Icons.north_west_rounded,
-                label: 'ВЕРХНЯЯ 1/4',
-                isVertical: true,
-              ),
-              Positioned(
-                left: 0.0,
-                top: quarterH,
-                width: guideBreadth,
-                height: halfH,
-                child: _buildDockZone(
-                  zone: SnapZone.left,
-                  alignment: Alignment.centerLeft,
-                  width: guideBreadth,
-                  height: halfH,
-                  icon: Icons.dock_rounded,
-                  label: 'ЛЕВАЯ ПОЛОВИНА',
-                  isVertical: true,
-                ),
-              ),
-              _buildDockZone(
-                zone: SnapZone.bottomLeft,
-                alignment: Alignment.bottomLeft,
-                width: guideBreadth,
-                height: quarterH,
-                icon: Icons.south_west_rounded,
-                label: 'НИЖНЯЯ 1/4',
-                isVertical: true,
-              ),
-              _buildDockZone(
-                zone: SnapZone.topRight,
-                alignment: Alignment.topRight,
-                width: guideBreadth,
-                height: quarterH,
-                icon: Icons.north_east_rounded,
-                label: 'ВЕРХНЯЯ 1/4',
-                isVertical: true,
-              ),
-              Positioned(
-                right: 0.0,
-                top: quarterH,
-                width: guideBreadth,
-                height: halfH,
-                child: _buildDockZone(
-                  zone: SnapZone.right,
-                  alignment: Alignment.centerRight,
-                  width: guideBreadth,
-                  height: halfH,
-                  icon: Icons.dock_rounded,
-                  label: 'ПРАВАЯ ПОЛОВИНА',
-                  isVertical: true,
-                ),
-              ),
-              _buildDockZone(
-                zone: SnapZone.bottomRight,
-                alignment: Alignment.bottomRight,
-                width: guideBreadth,
-                height: quarterH,
-                icon: Icons.south_east_rounded,
-                label: 'НИЖНЯЯ 1/4',
-                isVertical: true,
-              ),
-            ],
-          );
-        },
-      ),
+    // Внешний контур холста
+    canvas.drawRect(Rect.fromLTWH(0.0, 0.0, w, h), defaultPaint);
+
+    // Центральный разделитель
+    _drawDashedLine(canvas, Offset(halfW, 0.0), Offset(halfW, h), defaultPaint);
+    _drawDashedLine(canvas, Offset(0.0, halfH), Offset(w, halfH), defaultPaint);
+
+    // Краевые индикаторы зон
+    _drawZoneMarker(
+      canvas,
+      Rect.fromLTWH(0.0, 0.0, 48.0, h * 0.35),
+      activeZone == SnapZone.topLeft,
     );
+    _drawZoneMarker(
+      canvas,
+      Rect.fromLTWH(0.0, h * 0.35, 48.0, h * 0.3),
+      activeZone == SnapZone.leftHalf,
+    );
+    _drawZoneMarker(
+      canvas,
+      Rect.fromLTWH(0.0, h * 0.65, 48.0, h * 0.35),
+      activeZone == SnapZone.bottomLeft,
+    );
+
+    _drawZoneMarker(
+      canvas,
+      Rect.fromLTWH(w - 48.0, 0.0, 48.0, h * 0.35),
+      activeZone == SnapZone.topRight,
+    );
+    _drawZoneMarker(
+      canvas,
+      Rect.fromLTWH(w - 48.0, h * 0.35, 48.0, h * 0.3),
+      activeZone == SnapZone.rightHalf,
+    );
+    _drawZoneMarker(
+      canvas,
+      Rect.fromLTWH(w - 48.0, h * 0.65, 48.0, h * 0.35),
+      activeZone == SnapZone.bottomRight,
+    );
+
+    _drawZoneMarker(
+      canvas,
+      Rect.fromLTWH(48.0, 0.0, w - 96.0, 40.0),
+      activeZone == SnapZone.maximize,
+    );
+  }
+
+  void _drawZoneMarker(Canvas canvas, Rect rect, bool isActive) {
+    final Paint fill = Paint()
+      ..color = isActive ? activeColor.withValues(alpha: 0.15) : Colors.transparent
+      ..style = PaintingStyle.fill;
+    final Paint stroke = Paint()
+      ..color = isActive ? activeColor : idleColor
+      ..strokeWidth = isActive ? 1.5 : 0.75
+      ..style = PaintingStyle.stroke;
+
+    canvas.drawRect(rect, fill);
+    canvas.drawRect(rect, stroke);
+  }
+
+  void _drawDashedLine(Canvas canvas, Offset p1, Offset p2, Paint paint) {
+    const double dashWidth = 4.0;
+    const double dashSpace = 4.0;
+    final double dx = p2.dx - p1.dx;
+    final double dy = p2.dy - p1.dy;
+    final double distance = (dx * dx + dy * dy);
+    final double totalLength = (distance > 0.0) ? (dx != 0 ? dx.abs() : dy.abs()) : 0.0;
+
+    double current = 0.0;
+    while (current < totalLength) {
+      final double progressStart = current / totalLength;
+      final double progressEnd =
+          ((current + dashWidth).clamp(0.0, totalLength)) / totalLength;
+
+      canvas.drawLine(
+        Offset(p1.dx + (dx * progressStart), p1.dy + (dy * progressStart)),
+        Offset(p1.dx + (dx * progressEnd), p1.dy + (dy * progressEnd)),
+        paint,
+      );
+      current += dashWidth + dashSpace;
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _SnapGuidesPainter oldDelegate) {
+    return oldDelegate.activeZone != activeZone ||
+        oldDelegate.availableArea != availableArea;
   }
 }

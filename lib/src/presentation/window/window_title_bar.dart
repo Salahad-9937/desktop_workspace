@@ -1,331 +1,320 @@
-import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../state/controllers/workspace_controller.dart';
-import '../../state/models/tab_drag_payload.dart';
-import '../../state/models/window_state.dart';
-import '../../state/models/workspace_tab.dart';
+
+import '../../model/geometry_types.dart';
+import '../../model/tab_drag_payload.dart';
+import '../../model/window_state.dart';
 import '../../theme/workspace_theme.dart';
+import '../../theme/workspace_theme_data.dart';
 import 'tab_chip.dart';
 
-/// Заголовок плавающего окна с вкладками, зоной перетаскивания и кнопками управления.
-class WindowTitleBar extends ConsumerWidget {
-  /// Состояние окна.
-  final WindowState win;
+/// Интерактивная полоса заголовка оконного фрейма на всю ширину окна.
+class WindowTitleBar extends StatelessWidget {
+  /// Состояние оконного контейнера.
+  final WindowState window;
 
-  /// Флаг нахождения в фокусе ввода.
+  /// Активен ли контейнер в фокусе.
   final bool isFocused;
 
-  /// Доступные шаблоны вкладок для добавления новых модулей.
-  final List<WorkspaceTab>? tabTemplates;
+  /// Обратный вызов перемещения окна при драге заголовка.
+  final void Function(double deltaX, double deltaY, Offset pointer) onMove;
+
+  /// Завершение перемещения окна.
+  final VoidCallback onMoveEnd;
+
+  /// Переключение развертывания по двойному клику.
+  final VoidCallback onToggleMaximize;
+
+  /// Выбор активной вкладки.
+  final void Function(int index) onSelectTab;
+
+  /// Закрытие вкладки.
+  final void Function(String tabId) onCloseTab;
+
+  /// Дублирование вкладки.
+  final void Function(String tabId) onDuplicateTab;
+
+  /// Прием перетаскиваемой вкладки из другого окна.
+  final void Function(TabDragPayload payload) onTabDropped;
+
+  /// Переключение постоянного закрепления (Always on Top).
+  final VoidCallback onTogglePin;
+
+  /// Выбор зоны тайлинга через контекстное меню.
+  final void Function(SnapZone zone) onTileSelect;
+
+  /// Сворачивание окна.
+  final VoidCallback onMinimize;
+
+  /// Закрытие всего окна.
+  final VoidCallback onCloseWindow;
+
+  /// Точка расширения прикладных действий хоста.
+  final Widget? trailingActions;
 
   /// Создает экземпляр [WindowTitleBar].
   const WindowTitleBar({
     super.key,
-    required this.win,
+    required this.window,
     required this.isFocused,
-    this.tabTemplates,
+    required this.onMove,
+    required this.onMoveEnd,
+    required this.onToggleMaximize,
+    required this.onSelectTab,
+    required this.onCloseTab,
+    required this.onDuplicateTab,
+    required this.onTabDropped,
+    required this.onTogglePin,
+    required this.onTileSelect,
+    required this.onMinimize,
+    required this.onCloseWindow,
+    this.trailingActions,
   });
 
-  Future<void> _showAddTabMenu(BuildContext context, WidgetRef ref) async {
-    final WorkspaceController notifier =
-        ref.read(workspaceControllerProvider.notifier);
-
-    if (tabTemplates == null || tabTemplates!.isEmpty) {
-      notifier.addTab(
-        win.id,
-        WorkspaceTab(
-          id: 'tab_${win.tabs.length + 1}',
-          title: 'Вкладка ${win.tabs.length + 1}',
-        ),
-      );
-      return;
-    }
-
-    final WorkspaceTab? chosen = await showMenu<WorkspaceTab>(
-      context: context,
-      position: const RelativeRect.fromLTRB(200.0, 100.0, 200.0, 100.0),
-      color: const Color(0xFF131D2E),
-      items: tabTemplates!.map((WorkspaceTab template) {
-        final Color accent = template.accentColor ?? DesktopTheme.accentColor;
-        return PopupMenuItem<WorkspaceTab>(
-          value: template,
-          child: Row(
-            children: <Widget>[
-              if (template.icon != null) ...<Widget>[
-                Icon(template.icon, size: 16.0, color: accent),
-                const SizedBox(width: 8.0),
-              ],
-              Text(
-                template.title,
-                style: TextStyle(
-                  fontSize: 12.0,
-                  color: accent,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ],
-          ),
-        );
-      }).toList(),
-    );
-
-    if (chosen != null) {
-      notifier.addTab(win.id, chosen);
-    }
-  }
-
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final WorkspaceController notifier =
-        ref.read(workspaceControllerProvider.notifier);
-    final WorkspaceTab? activeTab = win.activeTab;
-    final Color accent = activeTab?.accentColor ?? DesktopTheme.accentColor;
-    final IconData icon = activeTab?.icon ?? Icons.web_asset_rounded;
+  Widget build(BuildContext context) {
+    final WorkspaceThemeData theme = WorkspaceTheme.of(context);
+    final String activeTitle = window.activeTab?.title ?? '';
 
     return DragTarget<TabDragPayload>(
-      onWillAcceptWithDetails: (DragTargetDetails<TabDragPayload> details) => true,
+      onWillAcceptWithDetails: (DragTargetDetails<TabDragPayload> details) {
+        return details.data.sourceWindowId != window.id;
+      },
       onAcceptWithDetails: (DragTargetDetails<TabDragPayload> details) {
-        notifier.mergeTab(
-          details.data.windowId,
-          details.data.tabIndex,
-          win.id,
-        );
+        onTabDropped(details.data);
       },
       builder: (
         BuildContext context,
-        List<TabDragPayload?> candidates,
-        List<dynamic> rejected,
+        List<TabDragPayload?> candidateData,
+        List<dynamic> rejectedData,
       ) {
-        final bool mergeHighlight = candidates.isNotEmpty;
+        final bool isTargetHovered = candidateData.isNotEmpty;
 
         return Container(
-          height: 36.0,
+          width: double.infinity,
+          height: theme.titlebarHeight,
           decoration: BoxDecoration(
-            color: mergeHighlight
-                ? accent.withValues(alpha: 0.22)
-                : (isFocused
-                    ? const Color(0xFF121B2B)
-                    : const Color(0xFF0C121D)),
-            border: Border.all(
-              color: mergeHighlight
-                  ? accent
-                  : (isFocused
-                      ? accent.withValues(alpha: 0.3)
-                      : const Color(0xFF1E2836)),
-              width: mergeHighlight ? 1.5 : 1.0,
+            color: isTargetHovered
+                ? theme.previewOverlay
+                : (isFocused ? theme.titlebarActive : theme.titlebarInactive),
+            border: Border(
+              bottom: BorderSide(
+                color: isFocused ? theme.borderActive : theme.borderInactive,
+                width: 1.0,
+              ),
             ),
           ),
           child: Row(
             children: <Widget>[
-              const SizedBox(width: 6.0),
-              GestureDetector(
-                behavior: HitTestBehavior.opaque,
-                onPanUpdate: (DragUpdateDetails d) {
-                  if (!win.isMaximized) {
-                    notifier.moveWindow(win.id, d.delta);
-                    notifier.updateSnapPreview(d.globalPosition);
-                  }
-                },
-                onPanEnd: (DragEndDetails d) =>
-                    notifier.commitSnapIfPending(win.id),
-                onDoubleTap: () => notifier.tileWindow(
-                  win.id,
-                  win.isMaximized ? 'restore' : 'maximize',
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 4.0),
-                  child: Icon(
-                    icon,
-                    size: 15.0,
-                    color: isFocused ? accent : const Color(0xFF78909C),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 4.0),
-              Expanded(
-                child: Stack(
+              // Лента компактных пиктограмм вкладок
+              Padding(
+                padding: const EdgeInsets.only(left: 4.0, top: 4.0),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
                   children: <Widget>[
-                    Positioned.fill(
-                      child: GestureDetector(
-                        behavior: HitTestBehavior.opaque,
-                        onPanUpdate: (DragUpdateDetails d) {
-                          if (!win.isMaximized) {
-                            notifier.moveWindow(win.id, d.delta);
-                            notifier.updateSnapPreview(d.globalPosition);
-                          }
-                        },
-                        onPanEnd: (DragEndDetails d) =>
-                            notifier.commitSnapIfPending(win.id),
-                        onDoubleTap: () => notifier.tileWindow(
-                          win.id,
-                          win.isMaximized ? 'restore' : 'maximize',
+                    for (int i = 0; i < window.tabs.length; i++)
+                      Padding(
+                        padding: const EdgeInsets.only(right: 3.0),
+                        child: TabChip(
+                          tab: window.tabs[i],
+                          isActive: i == window.activeTabIndex,
+                          windowId: window.id,
+                          tabIndex: i,
+                          isSingleTab: window.tabs.length == 1,
+                          onSelect: () => onSelectTab(i),
+                          onClose: () => onCloseTab(window.tabs[i].id),
+                          onDuplicate: () => onDuplicateTab(window.tabs[i].id),
                         ),
-                        child: const SizedBox.expand(),
                       ),
-                    ),
-                    Row(
-                      children: <Widget>[
-                        Flexible(
-                          child: SingleChildScrollView(
-                            scrollDirection: Axis.horizontal,
-                            child: Row(
-                              children: <Widget>[
-                                for (int i = 0; i < win.tabs.length; i++)
-                                  TabChip(
-                                    win: win,
-                                    index: i,
-                                    isFocused: isFocused,
-                                    tabTemplates: tabTemplates,
-                                  ),
-                                IconButton(
-                                  icon:
-                                      const Icon(Icons.add_rounded, size: 14.0),
-                                  padding: EdgeInsets.zero,
-                                  constraints: const BoxConstraints(
-                                    minWidth: 24.0,
-                                    minHeight: 24.0,
-                                  ),
-                                  tooltip: 'Добавить вкладку',
-                                  onPressed: () => unawaited(
-                                    _showAddTabMenu(context, ref),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
                   ],
                 ),
               ),
-              IconButton(
-                icon: Icon(
-                  win.isPinnedOnTop
-                      ? Icons.push_pin_rounded
-                      : Icons.push_pin_outlined,
-                  size: 14.0,
-                  color: win.isPinnedOnTop
-                      ? const Color(0xFFFFAB00)
-                      : const Color(0xFF78909C),
+              const SizedBox(width: 6.0),
+              // Область перетаскивания окна с центрированным заголовком активной вкладки
+              Expanded(
+                child: GestureDetector(
+                  behavior: HitTestBehavior.translucent,
+                  onDoubleTap: onToggleMaximize,
+                  onPanUpdate: (DragUpdateDetails details) {
+                    onMove(
+                      details.delta.dx,
+                      details.delta.dy,
+                      details.globalPosition,
+                    );
+                  },
+                  onPanEnd: (_) => onMoveEnd(),
+                  child: Center(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 8.0),
+                      child: Text(
+                        activeTitle,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 12.0,
+                          fontWeight:
+                              isFocused ? FontWeight.w600 : FontWeight.w400,
+                          color: isFocused
+                              ? theme.textPrimary
+                              : theme.textMuted,
+                        ),
+                      ),
+                    ),
+                  ),
                 ),
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(minWidth: 26.0),
-                tooltip: win.isPinnedOnTop
-                    ? 'Открепить окно'
+              ),
+              // Слот прикладных действий хоста
+              if (trailingActions != null) trailingActions!,
+              // Блок системных кнопок окна
+              _HeaderIconButton(
+                icon: Icons.push_pin_rounded,
+                tooltip: window.isPinnedOnTop
+                    ? 'Открепить поверх всех'
                     : 'Закрепить поверх всех',
-                onPressed: () => notifier.togglePin(win.id),
+                iconColor:
+                    window.isPinnedOnTop ? theme.statusPinned : theme.textMuted,
+                onPressed: onTogglePin,
               ),
-              PopupMenuButton<String>(
-                icon: const Icon(
-                  Icons.grid_view_rounded,
-                  size: 14.0,
-                  color: Color(0xFF78909C),
-                ),
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(minWidth: 26.0),
-                tooltip: 'Прикрепить к области экрана (Quick Tile)',
-                color: const Color(0xFF131D2E),
-                itemBuilder: (BuildContext ctx) =>
-                    const <PopupMenuEntry<String>>[
-                  PopupMenuItem<String>(
-                    value: 'left_half',
-                    child: Text(
-                      'Левая половина',
-                      style: TextStyle(fontSize: 12.0),
-                    ),
-                  ),
-                  PopupMenuItem<String>(
-                    value: 'right_half',
-                    child: Text(
-                      'Правая половина',
-                      style: TextStyle(fontSize: 12.0),
-                    ),
-                  ),
-                  PopupMenuDivider(),
-                  PopupMenuItem<String>(
-                    value: 'top_left',
-                    child: Text(
-                      'Верхняя левая четверть',
-                      style: TextStyle(fontSize: 12.0),
-                    ),
-                  ),
-                  PopupMenuItem<String>(
-                    value: 'top_right',
-                    child: Text(
-                      'Верхняя правая четверть',
-                      style: TextStyle(fontSize: 12.0),
-                    ),
-                  ),
-                  PopupMenuItem<String>(
-                    value: 'bottom_left',
-                    child: Text(
-                      'Нижняя левая четверть',
-                      style: TextStyle(fontSize: 12.0),
-                    ),
-                  ),
-                  PopupMenuItem<String>(
-                    value: 'bottom_right',
-                    child: Text(
-                      'Нижняя правая четверть',
-                      style: TextStyle(fontSize: 12.0),
-                    ),
-                  ),
-                  PopupMenuDivider(),
-                  PopupMenuItem<String>(
-                    value: 'restore',
-                    child: Text(
-                      'Вернуть исходный размер',
-                      style: TextStyle(fontSize: 12.0),
-                    ),
-                  ),
-                ],
-                onSelected: (String mode) => notifier.tileWindow(win.id, mode),
+              _TileMenuButton(
+                onTileSelect: onTileSelect,
+                iconColor: theme.textMuted,
               ),
-              IconButton(
-                icon: const Icon(
-                  Icons.remove_rounded,
-                  size: 14.0,
-                  color: Color(0xFF78909C),
-                ),
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(minWidth: 26.0),
-                tooltip: 'Свернуть в панель задач',
-                onPressed: () => notifier.toggleMinimize(win.id),
+              _HeaderIconButton(
+                icon: Icons.horizontal_rule_rounded,
+                tooltip: 'Свернуть',
+                iconColor: theme.textMuted,
+                onPressed: onMinimize,
               ),
-              IconButton(
-                icon: Icon(
-                  win.isMaximized
-                      ? Icons.fullscreen_exit_rounded
-                      : Icons.fullscreen_rounded,
-                  size: 14.0,
-                  color: const Color(0xFF78909C),
-                ),
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(minWidth: 26.0),
-                tooltip: win.isMaximized ? 'Восстановить' : 'На весь экран',
-                onPressed: () => notifier.tileWindow(
-                  win.id,
-                  win.isMaximized ? 'restore' : 'maximize',
-                ),
+              _HeaderIconButton(
+                icon: window.isMaximized
+                    ? Icons.filter_none_rounded
+                    : Icons.crop_square_rounded,
+                tooltip: window.isMaximized ? 'Восстановить' : 'Развернуть',
+                iconColor: theme.textMuted,
+                onPressed: onToggleMaximize,
               ),
-              IconButton(
-                icon: const Icon(
-                  Icons.close_rounded,
-                  size: 14.0,
-                  color: Color(0xFFFF5252),
-                ),
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(minWidth: 26.0),
-                tooltip: 'Закрыть окно',
-                onPressed: () => notifier.closeWindow(win.id),
+              _HeaderIconButton(
+                icon: Icons.close_rounded,
+                tooltip: 'Закрыть',
+                iconColor: theme.textMuted,
+                hoverColor: theme.actionCloseHover,
+                onPressed: onCloseWindow,
               ),
-              const SizedBox(width: 4.0),
             ],
           ),
         );
       },
+    );
+  }
+}
+
+class _HeaderIconButton extends StatefulWidget {
+  final IconData icon;
+  final String tooltip;
+  final Color iconColor;
+  final Color? hoverColor;
+  final VoidCallback onPressed;
+
+  const _HeaderIconButton({
+    required this.icon,
+    required this.tooltip,
+    required this.iconColor,
+    this.hoverColor,
+    required this.onPressed,
+  });
+
+  @override
+  State<_HeaderIconButton> createState() => _HeaderIconButtonState();
+}
+
+class _HeaderIconButtonState extends State<_HeaderIconButton> {
+  bool _isHovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: widget.tooltip,
+      waitDuration: const Duration(milliseconds: 400),
+      child: MouseRegion(
+        onEnter: (_) => setState(() => _isHovered = true),
+        onExit: (_) => setState(() => _isHovered = false),
+        child: InkWell(
+          onTap: widget.onPressed,
+          child: SizedBox(
+            width: 32.0,
+            height: 32.0,
+            child: Icon(
+              widget.icon,
+              size: 14.0,
+              color: _isHovered && widget.hoverColor != null
+                  ? widget.hoverColor
+                  : widget.iconColor,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _TileMenuButton extends StatelessWidget {
+  final void Function(SnapZone zone) onTileSelect;
+  final Color iconColor;
+
+  const _TileMenuButton({
+    required this.onTileSelect,
+    required this.iconColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return PopupMenuButton<SnapZone>(
+      tooltip: 'Меню тайлинга',
+      icon: Icon(Icons.grid_view_rounded, size: 14.0, color: iconColor),
+      padding: EdgeInsets.zero,
+      onSelected: onTileSelect,
+      itemBuilder: (BuildContext context) => <PopupMenuEntry<SnapZone>>[
+        const PopupMenuItem<SnapZone>(
+          value: SnapZone.maximize,
+          child: Row(
+            children: <Widget>[
+              Icon(Icons.crop_square_rounded, size: 16.0),
+              SizedBox(width: 8.0),
+              Text('На весь экран', style: TextStyle(fontSize: 12.0)),
+            ],
+          ),
+        ),
+        const PopupMenuItem<SnapZone>(
+          value: SnapZone.leftHalf,
+          child: Row(
+            children: <Widget>[
+              Icon(Icons.align_horizontal_left_rounded, size: 16.0),
+              SizedBox(width: 8.0),
+              Text('Левая половина', style: TextStyle(fontSize: 12.0)),
+            ],
+          ),
+        ),
+        const PopupMenuItem<SnapZone>(
+          value: SnapZone.rightHalf,
+          child: Row(
+            children: <Widget>[
+              Icon(Icons.align_horizontal_right_rounded, size: 16.0),
+              SizedBox(width: 8.0),
+              Text('Правая половина', style: TextStyle(fontSize: 12.0)),
+            ],
+          ),
+        ),
+        const PopupMenuItem<SnapZone>(
+          value: SnapZone.none,
+          child: Row(
+            children: <Widget>[
+              Icon(Icons.layers_clear_rounded, size: 16.0),
+              SizedBox(width: 8.0),
+              Text('Снять тайлинг', style: TextStyle(fontSize: 12.0)),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }
