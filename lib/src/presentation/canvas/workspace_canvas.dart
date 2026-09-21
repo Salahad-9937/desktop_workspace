@@ -11,6 +11,7 @@ import '../../state/workspace_state.dart';
 import '../dock/workspace_dock.dart';
 import '../window/window_frame.dart';
 import 'canvas_background.dart';
+import 'canvas_window_layer.dart';
 import 'shared_seam_overlay.dart';
 import 'snap_dock_guides.dart';
 import 'snap_preview_box.dart';
@@ -146,135 +147,21 @@ class WorkspaceCanvas extends ConsumerWidget {
                           )
                         else ...<Widget>[
                           // Слой 2: Окна стандартного яруса
-                          for (final WindowState win in state.standardWindows)
-                            WindowFrame(
-                              key: ValueKey<String>(win.id),
-                              window: win,
-                              isFocused: win.id == state.focusedWindowId,
-                              registeredViews: registeredViewsMap,
-                              fallbackBuilder: fallbackBuilder,
-                              onFocus: () => controller.focusWindow(win.id),
-                              onMove: (
-                                double dx,
-                                double dy,
-                                Offset pointer,
-                              ) {
-                                controller.moveWindow(
-                                  windowId: win.id,
-                                  deltaX: dx,
-                                  deltaY: dy,
-                                  pointerX: pointer.dx,
-                                  pointerY: pointer.dy,
-                                );
-                              },
-                              onMoveEnd: () => controller.commitMove(win.id),
-                              onResize: (
-                                ResizeDirection dir,
-                                double dx,
-                                double dy,
-                              ) {
-                                controller.resizeWindow(
-                                  windowId: win.id,
-                                  direction: dir,
-                                  deltaX: dx,
-                                  deltaY: dy,
-                                  enableSeamResizing: false,
-                                );
-                              },
-                              onResizeEnd: () => controller.commitResize(),
-                              onToggleMaximize: () =>
-                                  controller.toggleMaximizeWindow(win.id),
-                              onSelectTab: (int idx) =>
-                                  controller.selectTab(win.id, idx),
-                              onCloseTab: (String tId) => controller.closeTab(
-                                windowId: win.id,
-                                tabId: tId,
-                              ),
-                              onDuplicateTab: (String tId) =>
-                                  controller.duplicateTab(
-                                windowId: win.id,
-                                tabId: tId,
-                              ),
-                              onTabDropped: (TabDragPayload p, int? dropIndex) =>
-                                  controller.dropTabOnWindow(
-                                payload: p,
-                                targetWindowId: win.id,
-                                insertIndex: dropIndex,
-                              ),
-                              onTogglePin: () =>
-                                  controller.togglePinWindow(win.id),
-                              onTileSelect: (SnapZone z) =>
-                                  controller.tileWindow(win.id, z),
-                              onMinimize: () =>
-                                  controller.minimizeWindow(win.id),
-                              onCloseWindow: () =>
-                                  controller.closeWindow(win.id),
-                            ),
+                          CanvasWindowLayer(
+                            windows: state.standardWindows,
+                            focusedWindowId: state.focusedWindowId,
+                            registeredViews: registeredViewsMap,
+                            fallbackBuilder: fallbackBuilder,
+                            controller: controller,
+                          ),
                           // Слой 3: Окна приоритетного яруса (Always-on-Top)
-                          for (final WindowState win in state.pinnedWindows)
-                            WindowFrame(
-                              key: ValueKey<String>(win.id),
-                              window: win,
-                              isFocused: win.id == state.focusedWindowId,
-                              registeredViews: registeredViewsMap,
-                              fallbackBuilder: fallbackBuilder,
-                              onFocus: () => controller.focusWindow(win.id),
-                              onMove: (
-                                double dx,
-                                double dy,
-                                Offset pointer,
-                              ) {
-                                controller.moveWindow(
-                                  windowId: win.id,
-                                  deltaX: dx,
-                                  deltaY: dy,
-                                  pointerX: pointer.dx,
-                                  pointerY: pointer.dy,
-                                );
-                              },
-                              onMoveEnd: () => controller.commitMove(win.id),
-                              onResize: (
-                                ResizeDirection dir,
-                                double dx,
-                                double dy,
-                              ) {
-                                controller.resizeWindow(
-                                  windowId: win.id,
-                                  direction: dir,
-                                  deltaX: dx,
-                                  deltaY: dy,
-                                  enableSeamResizing: false,
-                                );
-                              },
-                              onResizeEnd: () => controller.commitResize(),
-                              onToggleMaximize: () =>
-                                  controller.toggleMaximizeWindow(win.id),
-                              onSelectTab: (int idx) =>
-                                  controller.selectTab(win.id, idx),
-                              onCloseTab: (String tId) => controller.closeTab(
-                                windowId: win.id,
-                                tabId: tId,
-                              ),
-                              onDuplicateTab: (String tId) =>
-                                  controller.duplicateTab(
-                                windowId: win.id,
-                                tabId: tId,
-                              ),
-                              onTabDropped: (TabDragPayload p, int? dropIndex) =>
-                                  controller.dropTabOnWindow(
-                                payload: p,
-                                targetWindowId: win.id,
-                                insertIndex: dropIndex,
-                              ),
-                              onTogglePin: () =>
-                                  controller.togglePinWindow(win.id),
-                              onTileSelect: (SnapZone z) =>
-                                  controller.tileWindow(win.id, z),
-                              onMinimize: () =>
-                                  controller.minimizeWindow(win.id),
-                              onCloseWindow: () =>
-                                  controller.closeWindow(win.id),
-                            ),
+                          CanvasWindowLayer(
+                            windows: state.pinnedWindows,
+                            focusedWindowId: state.focusedWindowId,
+                            registeredViews: registeredViewsMap,
+                            fallbackBuilder: fallbackBuilder,
+                            controller: controller,
+                          ),
                           // Слой 4: Интерактивный оверлей единых общих швов
                           SharedSeamOverlay(
                             windows: state.windows,

@@ -5,6 +5,8 @@ import '../../model/tab_drag_payload.dart';
 import '../../model/workspace_tab.dart';
 import '../../theme/workspace_theme.dart';
 import '../../theme/workspace_theme_data.dart';
+import 'tab_close_button.dart';
+import 'tab_drop_indicator.dart';
 
 /// Интерактивный гибридный чип вкладки с заголовком, кнопкой закрытия и поддержкой сортировки.
 class TabChip extends StatefulWidget {
@@ -169,7 +171,7 @@ class _TabChipState extends State<TabChip> {
                           ),
                         ),
                         const SizedBox(width: 4.0),
-                        _TabCloseButton(
+                        TabCloseButton(
                           onClose: widget.onClose,
                           normalColor: theme.textMuted,
                           hoverColor: theme.actionCloseHover,
@@ -301,43 +303,9 @@ class _TabChipState extends State<TabChip> {
               ),
             ),
             if (showLeftIndicator)
-              Positioned(
-                left: -1.5,
-                top: 2.0,
-                bottom: 2.0,
-                width: 3.0,
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: theme.accentColor,
-                    borderRadius: BorderRadius.circular(1.5),
-                    boxShadow: <BoxShadow>[
-                      BoxShadow(
-                        color: theme.accentColor.withValues(alpha: 0.8),
-                        blurRadius: 4.0,
-                      ),
-                    ],
-                  ),
-                ),
-              ),
+              TabDropIndicator(isLeft: true, color: theme.accentColor),
             if (showRightIndicator)
-              Positioned(
-                right: -1.5,
-                top: 2.0,
-                bottom: 2.0,
-                width: 3.0,
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: theme.accentColor,
-                    borderRadius: BorderRadius.circular(1.5),
-                    boxShadow: <BoxShadow>[
-                      BoxShadow(
-                        color: theme.accentColor.withValues(alpha: 0.8),
-                        blurRadius: 4.0,
-                      ),
-                    ],
-                  ),
-                ),
-              ),
+              TabDropIndicator(isLeft: false, color: theme.accentColor),
           ],
         );
       },
@@ -383,54 +351,6 @@ class _TabChipState extends State<TabChip> {
           widget.onClose();
         }
       }),
-    );
-  }
-}
-
-class _TabCloseButton extends StatefulWidget {
-  final VoidCallback onClose;
-  final Color normalColor;
-  final Color hoverColor;
-
-  const _TabCloseButton({
-    required this.onClose,
-    required this.normalColor,
-    required this.hoverColor,
-  });
-
-  @override
-  State<_TabCloseButton> createState() => _TabCloseButtonState();
-}
-
-class _TabCloseButtonState extends State<_TabCloseButton> {
-  bool _isHovered = false;
-
-  @override
-  Widget build(BuildContext context) {
-    return MouseRegion(
-      onEnter: (_) => setState(() => _isHovered = true),
-      onExit: (_) => setState(() => _isHovered = false),
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: widget.onClose,
-        child: Container(
-          width: 16.0,
-          height: 16.0,
-          decoration: BoxDecoration(
-            color: _isHovered
-                ? widget.hoverColor.withValues(alpha: 0.2)
-                : Colors.transparent,
-            borderRadius: BorderRadius.circular(3.0),
-          ),
-          child: Center(
-            child: Icon(
-              Icons.close_rounded,
-              size: 11.0,
-              color: _isHovered ? widget.hoverColor : widget.normalColor,
-            ),
-          ),
-        ),
-      ),
     );
   }
 }

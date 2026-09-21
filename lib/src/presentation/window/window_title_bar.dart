@@ -6,6 +6,8 @@ import '../../model/window_state.dart';
 import '../../theme/workspace_theme.dart';
 import '../../theme/workspace_theme_data.dart';
 import 'tab_chip.dart';
+import 'window_header_icon_button.dart';
+import 'window_tile_menu_button.dart';
 
 /// Интерактивная полоса заголовка оконного фрейма на всю ширину окна.
 class WindowTitleBar extends StatelessWidget {
@@ -168,7 +170,7 @@ class WindowTitleBar extends StatelessWidget {
           // Слот прикладных действий хоста
           if (trailingActions != null) trailingActions!,
           // Блок системных кнопок окна
-          _HeaderIconButton(
+          WindowHeaderIconButton(
             icon: Icons.push_pin_rounded,
             tooltip: window.isPinnedOnTop
                 ? 'Открепить поверх всех'
@@ -177,17 +179,17 @@ class WindowTitleBar extends StatelessWidget {
                 window.isPinnedOnTop ? theme.statusPinned : theme.textMuted,
             onPressed: onTogglePin,
           ),
-          _TileMenuButton(
+          WindowTileMenuButton(
             onTileSelect: onTileSelect,
             iconColor: theme.textMuted,
           ),
-          _HeaderIconButton(
+          WindowHeaderIconButton(
             icon: Icons.horizontal_rule_rounded,
             tooltip: 'Свернуть',
             iconColor: theme.textMuted,
             onPressed: onMinimize,
           ),
-          _HeaderIconButton(
+          WindowHeaderIconButton(
             icon: window.isMaximized
                 ? Icons.filter_none_rounded
                 : Icons.crop_square_rounded,
@@ -195,7 +197,7 @@ class WindowTitleBar extends StatelessWidget {
             iconColor: theme.textMuted,
             onPressed: onToggleMaximize,
           ),
-          _HeaderIconButton(
+          WindowHeaderIconButton(
             icon: Icons.close_rounded,
             tooltip: 'Закрыть',
             iconColor: theme.textMuted,
@@ -204,117 +206,6 @@ class WindowTitleBar extends StatelessWidget {
           ),
         ],
       ),
-    );
-  }
-}
-
-class _HeaderIconButton extends StatefulWidget {
-  final IconData icon;
-  final String tooltip;
-  final Color iconColor;
-  final Color? hoverColor;
-  final VoidCallback onPressed;
-
-  const _HeaderIconButton({
-    required this.icon,
-    required this.tooltip,
-    required this.iconColor,
-    this.hoverColor,
-    required this.onPressed,
-  });
-
-  @override
-  State<_HeaderIconButton> createState() => _HeaderIconButtonState();
-}
-
-class _HeaderIconButtonState extends State<_HeaderIconButton> {
-  bool _isHovered = false;
-
-  @override
-  Widget build(BuildContext context) {
-    return Tooltip(
-      message: widget.tooltip,
-      waitDuration: const Duration(milliseconds: 400),
-      child: MouseRegion(
-        onEnter: (_) => setState(() => _isHovered = true),
-        onExit: (_) => setState(() => _isHovered = false),
-        child: InkWell(
-          onTap: widget.onPressed,
-          child: SizedBox(
-            width: 32.0,
-            height: 32.0,
-            child: Icon(
-              widget.icon,
-              size: 14.0,
-              color: _isHovered && widget.hoverColor != null
-                  ? widget.hoverColor
-                  : widget.iconColor,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _TileMenuButton extends StatelessWidget {
-  final void Function(SnapZone zone) onTileSelect;
-  final Color iconColor;
-
-  const _TileMenuButton({
-    required this.onTileSelect,
-    required this.iconColor,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return PopupMenuButton<SnapZone>(
-      tooltip: 'Меню тайлинга',
-      icon: Icon(Icons.grid_view_rounded, size: 14.0, color: iconColor),
-      padding: EdgeInsets.zero,
-      onSelected: onTileSelect,
-      itemBuilder: (BuildContext context) => <PopupMenuEntry<SnapZone>>[
-        const PopupMenuItem<SnapZone>(
-          value: SnapZone.maximize,
-          child: Row(
-            children: <Widget>[
-              Icon(Icons.crop_square_rounded, size: 16.0),
-              SizedBox(width: 8.0),
-              Text('На весь экран', style: TextStyle(fontSize: 12.0)),
-            ],
-          ),
-        ),
-        const PopupMenuItem<SnapZone>(
-          value: SnapZone.leftHalf,
-          child: Row(
-            children: <Widget>[
-              Icon(Icons.align_horizontal_left_rounded, size: 16.0),
-              SizedBox(width: 8.0),
-              Text('Левая половина', style: TextStyle(fontSize: 12.0)),
-            ],
-          ),
-        ),
-        const PopupMenuItem<SnapZone>(
-          value: SnapZone.rightHalf,
-          child: Row(
-            children: <Widget>[
-              Icon(Icons.align_horizontal_right_rounded, size: 16.0),
-              SizedBox(width: 8.0),
-              Text('Правая половина', style: TextStyle(fontSize: 12.0)),
-            ],
-          ),
-        ),
-        const PopupMenuItem<SnapZone>(
-          value: SnapZone.none,
-          child: Row(
-            children: <Widget>[
-              Icon(Icons.layers_clear_rounded, size: 16.0),
-              SizedBox(width: 8.0),
-              Text('Снять тайлинг', style: TextStyle(fontSize: 12.0)),
-            ],
-          ),
-        ),
-      ],
     );
   }
 }
