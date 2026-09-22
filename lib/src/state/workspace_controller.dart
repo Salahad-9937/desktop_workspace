@@ -34,14 +34,15 @@ class WorkspaceController extends _$WorkspaceController {
     return const WorkspaceState();
   }
 
-  /// Задает глобальную конфигурацию холста [config].
+  /// Задает глобальную конфигурацию холста [config] с пересчетом полезной области при смене высоты дока.
   void updateConfig(WorkspaceConfig config) {
-    final bool dockChanged = config.dockHeight != state.config.dockHeight;
+    final double oldDockHeight = state.config.dockHeight;
+    final bool dockChanged = config.dockHeight != oldDockHeight;
     state = state.copyWith(config: config);
 
     if (dockChanged && state.availableArea.width > 0.0) {
       final double totalHeight =
-          state.availableArea.height + state.config.dockHeight;
+          state.availableArea.height + oldDockHeight;
       updateViewportSize(state.availableArea.width, totalHeight);
     } else {
       _scheduleAutosave();

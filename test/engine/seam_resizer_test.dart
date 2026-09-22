@@ -241,6 +241,34 @@ void main() {
       expect(updatedB.width, 370.0);
     });
 
+    test('Масштабирование свободного края по оси Y при отсутствии соседей снизу или сверху', () {
+      // winA в изоляции (без соседей)
+      final List<WindowState> resultSouth = SeamResizer.resizeSeam(
+        primaryWindow: winA,
+        allWindows: <WindowState>[winA],
+        direction: ResizeDirection.south,
+        deltaX: 0.0,
+        deltaY: 50.0,
+        seamEpsilon: 6.0,
+        minSeamOverlap: 24.0,
+        globalConstraints: constraints,
+      );
+      expect(resultSouth.first.height, 650.0);
+
+      final List<WindowState> resultNorth = SeamResizer.resizeSeam(
+        primaryWindow: winA,
+        allWindows: <WindowState>[winA],
+        direction: ResizeDirection.north,
+        deltaX: 0.0,
+        deltaY: -30.0,
+        seamEpsilon: 6.0,
+        minSeamOverlap: 24.0,
+        globalConstraints: constraints,
+      );
+      expect(resultNorth.first.height, 630.0);
+      expect(resultNorth.first.y, -30.0);
+    });
+
     test('Блокировка смещения шва при достижении minWidth ведомого окна', () {
       final List<WindowState> result = SeamResizer.resizeSeam(
         primaryWindow: winA,

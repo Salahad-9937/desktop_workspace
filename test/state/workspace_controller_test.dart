@@ -2,6 +2,7 @@ import 'package:desktop_workspace/src/model/geometry_types.dart';
 import 'package:desktop_workspace/src/model/tab_drag_payload.dart';
 import 'package:desktop_workspace/src/model/view_definition.dart';
 import 'package:desktop_workspace/src/model/window_state.dart';
+import 'package:desktop_workspace/src/model/workspace_profile.dart';
 import 'package:desktop_workspace/src/model/workspace_tab.dart';
 import 'package:desktop_workspace/src/state/persistence/session_storage.dart';
 import 'package:desktop_workspace/src/state/workspace_controller.dart';
@@ -74,7 +75,6 @@ void main() {
         <String>['win_split_primary', 'win_split_secondary'],
       );
 
-      // Меняем фокус на второе окно
       controller.focusWindow('win_split_secondary');
 
       state = container.read(workspaceControllerProvider);
@@ -108,6 +108,100 @@ void main() {
       expect(state.windows.length, 2);
       expect(state.focusedWindowId, startsWith('win_type_new_'));
       expect(state.dockOrder.length, 2);
+    });
+
+    test('openView для singleton-представления фокусирует существующее окно вместо дублирования', () {
+      final WorkspaceController controller =
+          container.read(workspaceControllerProvider.notifier);
+      controller.updateViewportSize(1000.0, 800.0);
+
+      final ViewDefinition singletonDef = ViewDefinition(
+        typeId: 'singleton_panel',
+        title: 'Уникальная панель',
+        strategy: ViewInstanceStrategy.singleton,
+        builder: (_, __, ___) => const SizedBox(),
+      );
+
+      controller.openView(definition: singletonDef);
+      expect(container.read(workspaceControllerProvider).windows.length, 1);
+      final String firstWinId = container.read(workspaceControllerProvider).windows.first.id;
+
+      // Открываем второе произвольное окно
+      controller.openView(
+        definition: ViewDefinition(
+          typeId: 'multi_panel',
+          title: 'Обычная панель',
+          builder: (_, __, ___) => const SizedBox(),
+        ),
+      );
+      expect(container.read(workspaceControllerProvider).windows.length, 2);
+
+      // Повторный вызов openView для singleton должен сфокусировать первое окно
+      controller.openView(definition: singletonDef);
+      final WorkspaceState state = container.read(workspaceControllerProvider);
+      expect(state.windows.length, 2);
+      expect(state.focusedWindowId, firstWinId);
+    });
+
+    test('startTabDrag и endTabDrag обновляют состояние перемещения вкладки', () {
+      final WorkspaceController controller =
+          container.read(workspaceControllerProvider.notifier);
+      const TabDragPayload payload = TabDragPayload(
+        tab: WorkspaceTab(id: 't_drag', typeId: 'v', title: 'Drag'),
+        sourceWindowId: 'win_src',
+        sourceTabIndex: 0,
+        isSingleTab: true,
+      );
+
+      controller.startTabDrag(payload);
+      expect(container.read(workspaceControllerProvider).draggingTabPayload, payload);
+
+      controller.endTabDrag();
+      expect(container.read(workspaceControllerProvider).draggingTabPayload, isNull);
+    });
+
+    test('createCurrentProfile и applyProfile корректно сохраняют и восстанавливают профиль', () {
+      final WorkspaceController controller =
+          container.read(workspaceControllerProvider.notifier);
+      controller.updateViewportSize(1000.0, 800.0);
+
+      controller.applyPresetSplit(
+        windowsTabs: <List<WorkspaceTab>>[
+          <WorkspaceTab>[const WorkspaceTab(id: 'p1', typeId: 'v1', title: 'P1')],
+          <WorkspaceTab>[const WorkspaceTab(id: 'p2', typeId: 'v2', title: 'P2')],
+        ],
+      );
+
+      final WorkspaceProfile savedProfile = controller.createCurrentProfile(
+        id: 'test_profile',
+        name: 'Тестовый профиль',
+      );
+      expect(savedProfile.placements.length, 2);
+
+      // Сбрасываем в соло режим
+      controller.applyPresetSolo(<WorkspaceTab>[
+        const WorkspaceTab(id: 's1', typeId: 'v', title: 'Solo'),
+      ]);
+      expect(container.read(workspaceControllerProvider).windows.length, 1);
+
+      // Восстанавливаем профиль
+      controller.applyProfile(savedProfile);
+      final WorkspaceState restoredState = container.read(workspaceControllerProvider);
+      expect(restoredState.windows.length, 2);
+      expect(restoredState.windows[0].id, 'win_split_primary');
+      expect(restoredState.windows[1].id, 'win_split_secondary');
+    });
+
+    test('updateConfig при изменении высоты дока пересчитывает доступную область', () {
+      final WorkspaceController controller =
+          container.read(workspaceControllerProvider.notifier);
+      controller.updateViewportSize(1000.0, 800.0);
+      expect(container.read(workspaceControllerProvider).availableArea.height, 752.0); // 800 - 48
+
+      controller.updateConfig(
+        container.read(workspaceControllerProvider).config.copyWith(dockHeight: 60.0),
+      );
+      expect(container.read(workspaceControllerProvider).availableArea.height, 740.0); // 800 - 60
     });
 
     test('Приоритет ярусов: Always-on-Top окно всегда выше обычных', () {
@@ -194,7 +288,6 @@ void main() {
         ],
       );
 
-      // Задаем окну точные плавающие габариты 360x280 (с учетом высоты дока 48px: 752 - 472 = 280)
       controller.resizeWindow(
         windowId: 'win_split_primary',
         direction: ResizeDirection.east,
@@ -212,7 +305,6 @@ void main() {
         enableSnapping: false,
       );
 
-      // Применяем тайлинг (левая половина экрана, ширина 500px, restoreRect фиксирует 360x280)
       controller.tileWindow('win_split_primary', SnapZone.leftHalf);
 
       final WindowState tiledWin = container
@@ -223,7 +315,6 @@ void main() {
       expect(tiledWin.restoreRect?.width, 360.0);
       expect(tiledWin.restoreRect?.height, 280.0);
 
-      // Перемещаем окно курсором (срыв тайлинга)
       controller.moveWindow(
         windowId: 'win_split_primary',
         deltaX: 10.0,
@@ -238,7 +329,6 @@ void main() {
       final WindowState draggedWin = state.windows
           .firstWhere((WindowState w) => w.id == 'win_split_primary');
 
-      // Окно сорвало тайлинг, вернуло свои точные размеры 360x280
       expect(draggedWin.snapZone, SnapZone.none);
       expect(draggedWin.isMaximized, isFalse);
       expect(draggedWin.width, 360.0);
@@ -250,7 +340,6 @@ void main() {
           container.read(workspaceControllerProvider.notifier);
       controller.updateViewportSize(1000.0, 800.0);
 
-      // Окно A: [0..480], Окно B: [500..1000]
       controller.applyPresetSplit(
         windowsTabs: <List<WorkspaceTab>>[
           <WorkspaceTab>[
@@ -262,7 +351,6 @@ void main() {
         ],
       );
 
-      // Устанавливаем окно A на ширину 480 (зазор 20px до окна B, которое на 500)
       controller.resizeWindow(
         windowId: 'win_split_primary',
         direction: ResizeDirection.east,
@@ -282,7 +370,6 @@ void main() {
         480.0,
       );
 
-      // Растягиваем окно A вправо на +15px (край 495px попадает в радиус магнита 10px к окну B на 500px)
       controller.resizeWindow(
         windowId: 'win_split_primary',
         direction: ResizeDirection.east,
@@ -296,10 +383,8 @@ void main() {
           .read(workspaceControllerProvider)
           .windows
           .firstWhere((WindowState w) => w.id == 'win_split_primary');
-      // Магнит притянул правый край ровно к 500.0 (ширина стала 500.0)
       expect(currentA.width, 500.0);
 
-      // Протягиваем дальше на +20px (выход за пределы радиуса магнита)
       controller.resizeWindow(
         windowId: 'win_split_primary',
         direction: ResizeDirection.east,
@@ -313,7 +398,6 @@ void main() {
           .read(workspaceControllerProvider)
           .windows
           .firstWhere((WindowState w) => w.id == 'win_split_primary');
-      // Окно отлипло от шва и продолжило свободное наложение поверх окна B
       expect(currentA.width, 515.0);
     });
 

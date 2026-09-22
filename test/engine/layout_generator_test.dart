@@ -29,9 +29,10 @@ void main() {
       expect(grid[0].height, 400.0);
       expect(grid[3].x, 600.0);
       expect(grid[3].y, 400.0);
+      expect(grid[0].restoreRect, isNotNull);
     });
 
-    test('generateSplit создает пропорциональное деление 60/40', () {
+    test('generateSplit создает пропорциональное деление 60/40 (горизонтальное)', () {
       final List<WindowState> split = LayoutGenerator.generateSplit(
         availableArea: area,
         primaryTabs: <WorkspaceTab>[
@@ -48,6 +49,47 @@ void main() {
       expect(split[0].width, 720.0);
       expect(split[1].width, 480.0);
       expect(split[1].x, 720.0);
+      expect(split[0].restoreRect, isNotNull);
+      expect(split[1].restoreRect, isNotNull);
+    });
+
+    test('generateSplit создает вертикальное разделение (SplitOrientation.vertical)', () {
+      final List<WindowState> split = LayoutGenerator.generateSplit(
+        availableArea: area,
+        primaryTabs: <WorkspaceTab>[
+          const WorkspaceTab(id: 'top_1', typeId: 'v', title: 'Top'),
+        ],
+        secondaryTabs: <WorkspaceTab>[
+          const WorkspaceTab(id: 'bottom_1', typeId: 'v', title: 'Bottom'),
+        ],
+        orientation: SplitOrientation.vertical,
+        splitRatio: 0.5,
+      );
+
+      expect(split.length, 2);
+      expect(split[0].width, 1200.0);
+      expect(split[0].height, 400.0);
+      expect(split[1].width, 1200.0);
+      expect(split[1].height, 400.0);
+      expect(split[1].y, 400.0);
+      expect(split[0].restoreRect, isNotNull);
+      expect(split[1].restoreRect, isNotNull);
+    });
+
+    test('generateSolo создает полноэкранное окно с точкой отката', () {
+      final List<WindowState> solo = LayoutGenerator.generateSolo(
+        availableArea: area,
+        tabs: <WorkspaceTab>[
+          const WorkspaceTab(id: 's1', typeId: 'v', title: 'Solo'),
+        ],
+      );
+
+      expect(solo.length, 1);
+      expect(solo.first.width, 1200.0);
+      expect(solo.first.height, 800.0);
+      expect(solo.first.isMaximized, isTrue);
+      expect(solo.first.snapZone, SnapZone.maximize);
+      expect(solo.first.restoreRect, isNotNull);
     });
   });
 }

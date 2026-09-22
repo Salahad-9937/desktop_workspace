@@ -70,6 +70,30 @@ void main() {
       expect(snapped.$2, 150.0);
     });
 
+    test('snapPosition: вертикальное притягивание к верхней и нижней грани соседа', () {
+      const WindowState neighbor = WindowState(
+        id: 'win_neighbor',
+        x: 100.0,
+        y: 100.0,
+        width: 300.0,
+        height: 200.0, // bottom = 300.0
+        tabs: <WorkspaceTab>[WorkspaceTab(id: 'n', typeId: 'v', title: 'N')],
+      );
+
+      // Стыковка сверху к соседу: targetY + height = 295.0 (зазор 5px до neighbor.top = 100) -> примагничивание targetY к 100 - 100 = 0
+      final (double, double) snapTop = MagnetSnapper.snapPosition(
+        targetX: 150.0,
+        targetY: 305.0, // зазор 5px от neighbor.bottom = 300.0
+        width: 150.0,
+        height: 100.0,
+        availableArea: area,
+        otherWindows: <WindowState>[neighbor],
+        magnetThreshold: 10.0,
+        minOverlap: 20.0,
+      );
+      expect(snapTop.$2, 300.0);
+    });
+
     test('snapResizeEdge: примагничивание правого ребра к левой грани соседа', () {
       const WindowState neighbor = WindowState(
         id: 'win_neighbor',
@@ -98,6 +122,60 @@ void main() {
       );
 
       expect(snapped, 500.0);
+    });
+
+    test('snapResizeEdge: вертикальное притягивание ребер к границам экрана и соседним окнам', () {
+      const WindowState neighbor = WindowState(
+        id: 'win_neighbor_y',
+        x: 100.0,
+        y: 400.0,
+        width: 300.0,
+        height: 300.0, // bottom = 700.0
+        tabs: <WorkspaceTab>[WorkspaceTab(id: 'n', typeId: 'v', title: 'N')],
+      );
+
+      const WorkspaceRect current = WorkspaceRect(
+        x: 100.0,
+        y: 100.0,
+        width: 300.0,
+        height: 295.0, // южное ребро на 395.0 (зазор 5px до соседа top = 400.0)
+      );
+
+      // Притягивание южного ребра к верхней грани соседа
+      final double snapSouth = MagnetSnapper.snapResizeEdge(
+        rawEdge: 395.0,
+        direction: ResizeDirection.south,
+        currentRect: current,
+        availableArea: area,
+        otherWindows: <WindowState>[neighbor],
+        magnetThreshold: 10.0,
+        minOverlap: 24.0,
+      );
+      expect(snapSouth, 400.0);
+
+      // Притягивание южного ребра к нижнему краю доступной области холста (800.0)
+      final double snapBottomEdge = MagnetSnapper.snapResizeEdge(
+        rawEdge: 795.0,
+        direction: ResizeDirection.south,
+        currentRect: current,
+        availableArea: area,
+        otherWindows: <WindowState>[],
+        magnetThreshold: 10.0,
+        minOverlap: 24.0,
+      );
+      expect(snapBottomEdge, 800.0);
+
+      // Притягивание северного ребра к верхнему краю экрана (0.0)
+      final double snapTopEdge = MagnetSnapper.snapResizeEdge(
+        rawEdge: 6.0,
+        direction: ResizeDirection.north,
+        currentRect: current,
+        availableArea: area,
+        otherWindows: <WindowState>[],
+        magnetThreshold: 10.0,
+        minOverlap: 24.0,
+      );
+      expect(snapTopEdge, 0.0);
     });
 
     test('snapResizeEdge: свободный проход за пределы порога магнита', () {
